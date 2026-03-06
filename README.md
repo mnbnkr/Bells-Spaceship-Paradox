@@ -1,2 +1,3 @@
-# Bell-s-Spaceship-Paradox
-Interactive demonstration of Bell's spaceship paradox. When and why does the rope break between the two ships?
+# Bells-Spaceship-Paradox
+Interactive demonstration of Bell's spaceship paradox.
+Why must a steel cable between two identically-accelerating spaceships eventually snap – and what happens when only one ship fires?
