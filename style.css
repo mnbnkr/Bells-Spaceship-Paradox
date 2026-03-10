@@ -17,7 +17,7 @@
   --cable-danger: #ff6868;
   --font-h: "Syncopate", sans-serif;
   --font-b: "Raleway", sans-serif;
-  --font-m: "Space Mono", monospace;
+  --font-m: "JetBrains Mono", "Space Mono", monospace;
 }
 *,
 *::before,

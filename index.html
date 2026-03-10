@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syncopate:wght@400;700&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
@@ -136,7 +136,7 @@
                       >
                     </span>
                   </span>
-                  <span class="ctrl-val" id="val-break">2.0%</span>
+                  <span class="ctrl-val" id="val-break">0.1%</span>
                 </div>
                 <input
                   type="range"
@@ -144,7 +144,7 @@
                   min="0.1"
                   max="15.0"
                   step="0.1"
-                  value="2.0"
+                  value="0.1"
                 />
               </div>
             </div>
@@ -158,11 +158,11 @@
                     <span class="info-tip">Natural rest length as a multiple of the initial attachment-point gap (D + offset from attachment positions). 1.0× = rope exactly spans the gap between attachment points (no slack). 1.5× or 2.0× = extra slack — the rope sags before relativistic stretching takes over.</span>
                   </span>
                 </span>
-                <span class="ctrl-val" id="val-rope-length">1.0 × D</span>
+                <span class="ctrl-val" id="val-rope-length">1.5 × D</span>
               </div>
               <div class="rope-length-btns">
-                <button class="rope-btn active" data-rope="1.0">1.0 × D <span class="rope-btn-sub">No slack</span></button>
-                <button class="rope-btn" data-rope="1.5">1.5 × D <span class="rope-btn-sub">Half slack</span></button>
+                <button class="rope-btn" data-rope="1.0">1.0 × D <span class="rope-btn-sub">No slack</span></button>
+                <button class="rope-btn active" data-rope="1.5">1.5 × D <span class="rope-btn-sub">Half slack</span></button>
                 <button class="rope-btn" data-rope="2.0">2.0 × D <span class="rope-btn-sub">Full slack</span></button>
               </div>
             </div>
@@ -439,7 +439,7 @@
                 </div>
                 <div class="sv-item">
                   <span class="sv-label">Snaps At</span>
-                  <span class="sv-num" id="sv-break">2.0%</span>
+                  <span class="sv-num" id="sv-break">0.1%</span>
                 </div>
                 <div class="sv-item">
                   <span class="sv-label">Abs. Stretch</span>

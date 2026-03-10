@@ -7,16 +7,20 @@ const state = {
   t: 0.0,
   a: 0.8,
   L_gap: 3.0,
-  breakStrain: 0.02,
+  breakStrain: 0.001,
   aA: 0.0,
   aB: 0.0,
-  ropeLength: 1.0,   // Rope natural length as multiple of D (1.0, 1.5, 2.0)
+  ropeLength: 1.5,   // Rope natural length as multiple of D (1.0, 1.5, 2.0)
   scenario: "bell",
   isPlaying: false,
   speed: 1.0,
   maxT: 6.0,
   view: "lab",
+  selectedObserver: null, // "A", "B", "rope", or null
 };
+
+// Hit-test targets for observer buttons (rebuilt each frame)
+let observerHitTargets = [];
 
 // ═══════════════════════════════════════════════
 // STAR FIELD (generated once)
@@ -317,47 +321,58 @@ function drawRopeVisual(ctx, rxA, rxB, ry, slackFraction, strainRatio, isBroken,
 
   // ── BROKEN STATE ──
   if (isBroken) {
-    const breakMidX = midX;
-    const breakMidY = ry + 24 * dScale;
+    const retractLen = Math.min(spanPx * 0.15, 40 * dScale);
+    const droopY = ry + 22 * dScale;
 
-    // Two drooping halves
+    // Left end position (Ship A's broken end)
+    const leftEndX = rxA + retractLen;
+    const leftEndY = droopY;
+    // Right end position (Ship B's broken end)
+    const rightEndX = rxB - retractLen;
+    const rightEndY = droopY;
+
+    // Two drooping halves — each hangs near its own ship
     ctx.lineWidth = 2.0 * dScale;
     ctx.strokeStyle = `rgba(220, 110, 55, 0.95)`;
     ctx.shadowColor = `rgba(255, 90, 40, 0.75)`;
     ctx.shadowBlur = 10 * dScale;
 
+    // Left half (Ship A's side)
     ctx.beginPath();
     ctx.moveTo(rxA, ry);
     ctx.bezierCurveTo(
-      rxA + spanPx * 0.12, ry + 6 * dScale,
-      breakMidX - spanPx * 0.22, ry + 20 * dScale,
-      breakMidX - 11 * dScale, breakMidY
+      rxA + retractLen * 0.35, ry + 8 * dScale,
+      rxA + retractLen * 0.75, droopY - 2 * dScale,
+      leftEndX, leftEndY
     );
     ctx.stroke();
 
+    // Right half (Ship B's side)
     ctx.beginPath();
     ctx.moveTo(rxB, ry);
     ctx.bezierCurveTo(
-      rxB - spanPx * 0.12, ry + 6 * dScale,
-      breakMidX + spanPx * 0.22, ry + 20 * dScale,
-      breakMidX + 11 * dScale, breakMidY
+      rxB - retractLen * 0.35, ry + 8 * dScale,
+      rxB - retractLen * 0.75, droopY - 2 * dScale,
+      rightEndX, rightEndY
     );
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Frayed ends — deterministic fiber wisps
-    const frayOffsets = [
-      [-14, -3, -0.7, 8], [-8, 5, 0.2, 6], [-16, 2, -1.1, 7],
-      [-10, -5, -0.3, 5], [-6, 3, 0.8, 9],
-      [14, -3, 0.7, 8], [8, 5, -0.2, 6], [16, 2, 1.1, 7],
-      [10, -5, 0.3, 5], [6, 3, -0.8, 9],
+    // Frayed ends — fiber wisps at each broken tip
+    const frayOffsetsLeft = [
+      [4, -3, 0.5, 7], [6, 2, 0.9, 6], [2, 4, 1.2, 5],
+      [8, -1, 0.3, 8], [5, 3, 0.7, 6],
     ];
-    frayOffsets.forEach(([ox, oy, angle, len], i) => {
-      const isLeft = i < 5;
-      const ex = breakMidX + (isLeft ? -11 : 11) * dScale + ox * dScale * 0.5;
-      const ey = breakMidY + oy * dScale * 0.3;
+    const frayOffsetsRight = [
+      [-4, -3, -0.5, 7], [-6, 2, -0.9, 6], [-2, 4, -1.2, 5],
+      [-8, -1, -0.3, 8], [-5, 3, -0.7, 6],
+    ];
+
+    frayOffsetsLeft.forEach(([ox, oy, angle, len], i) => {
+      const ex = leftEndX + ox * dScale * 0.5;
+      const ey = leftEndY + oy * dScale * 0.3;
       const flen = len * dScale;
-      ctx.strokeStyle = `rgba(${190 + i * 6}, ${90 + i * 12}, ${40}, ${0.75 - i * 0.04})`;
+      ctx.strokeStyle = `rgba(${190 + i * 6}, ${90 + i * 12}, ${40}, ${0.7 - i * 0.06})`;
       ctx.lineWidth = (0.8 + (i % 3) * 0.3) * dScale;
       ctx.beginPath();
       ctx.moveTo(ex, ey);
@@ -365,21 +380,43 @@ function drawRopeVisual(ctx, rxA, rxB, ry, slackFraction, strainRatio, isBroken,
       ctx.stroke();
     });
 
-    // Floating embers/sparks
-    for (let i = 0; i < 9; i++) {
-      const angle = (i / 9) * Math.PI * 2 + now * 0.001 * 0.6;
-      const dist = (3 + Math.sin(now * 0.0018 + i * 0.9) * 7 + i * 1.3) * dScale;
-      const px = breakMidX + Math.cos(angle) * dist;
-      const py = breakMidY + Math.sin(angle) * dist;
-      ctx.fillStyle = `rgba(255,${88 + i * 16},0,${0.62 - i * 0.05})`;
+    frayOffsetsRight.forEach(([ox, oy, angle, len], i) => {
+      const ex = rightEndX + ox * dScale * 0.5;
+      const ey = rightEndY + oy * dScale * 0.3;
+      const flen = len * dScale;
+      ctx.strokeStyle = `rgba(${190 + i * 6}, ${90 + i * 12}, ${40}, ${0.7 - i * 0.06})`;
+      ctx.lineWidth = (0.8 + (i % 3) * 0.3) * dScale;
       ctx.beginPath();
-      ctx.arc(px, py, 1.4 * dScale, 0, Math.PI * 2);
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex + Math.cos(angle) * flen, ey + Math.sin(angle) * flen);
+      ctx.stroke();
+    });
+
+    // Floating embers/sparks — split between both broken ends
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2 + now * 0.001 * 0.6;
+      const dist = (3 + Math.sin(now * 0.0018 + i * 0.9) * 5 + i * 1.1) * dScale;
+      const px = leftEndX + Math.cos(angle) * dist;
+      const py = leftEndY + Math.sin(angle) * dist;
+      ctx.fillStyle = `rgba(255,${88 + i * 20},0,${0.55 - i * 0.06})`;
+      ctx.beginPath();
+      ctx.arc(px, py, 1.3 * dScale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2 + now * 0.001 * 0.6 + 0.5;
+      const dist = (3 + Math.sin(now * 0.0018 + i * 0.9 + 1.5) * 5 + i * 1.1) * dScale;
+      const px = rightEndX + Math.cos(angle) * dist;
+      const py = rightEndY + Math.sin(angle) * dist;
+      ctx.fillStyle = `rgba(255,${88 + i * 20},0,${0.55 - i * 0.06})`;
+      ctx.beginPath();
+      ctx.arc(px, py, 1.3 * dScale, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // "ROPE SNAPPED" label
+    // "ROPE SNAPPED" label — centered between ships
     ctx.fillStyle = "rgba(255, 105, 55, 0.95)";
-    ctx.font = `700 ${Math.max(11, Math.round(13 * dScale))}px 'Space Mono', monospace`;
+    ctx.font = `700 ${Math.max(11, Math.round(13 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
     ctx.shadowColor = "rgba(255, 80, 35, 0.85)";
     ctx.shadowBlur = 12 * dScale;
@@ -437,9 +474,9 @@ function drawRopeVisual(ctx, rxA, rxB, ry, slackFraction, strainRatio, isBroken,
   // Tow mode label
   if (isTow) {
     ctx.fillStyle = "rgba(120,180,220,0.8)";
-    ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'Space Mono', monospace`;
+    ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
-    ctx.fillText("STRONG CABLE — MECHANICAL TENSION", midX, ry - 14 * dScale);
+    ctx.fillText("STRONG CABLE — MECHANICAL TENSION", midX, ry + 18 * dScale);
   }
 }
 
@@ -469,7 +506,7 @@ function drawClock(ctx, px, py, targetX, targetY, timeVal, label, color, dScale)
   ctx.fill();
   ctx.stroke();
 
-  ctx.font = `700 ${Math.max(9, Math.round(11 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `700 ${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   if (timeVal === null) {
     ctx.fillStyle = "#ff6868";
@@ -480,7 +517,7 @@ function drawClock(ctx, px, py, targetX, targetY, timeVal, label, color, dScale)
   }
 
   ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
-  ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.fillText(label, px, py - 16 * dScale);
 }
 
@@ -503,6 +540,7 @@ function renderLab(phys) {
     strain, isBroken, slackFraction, scenario,
   } = phys;
   ctx.clearRect(0, 0, CW, CH);
+  observerHitTargets = [];
 
   const dScale = (CW / 800) * 1.35;
 
@@ -649,6 +687,38 @@ function renderLab(phys) {
     ctx.arc(psx, ry_pylon, 3.5 * dScale, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
+
+    // ── Observer button inside ship ──
+    const obsId = label === "A" ? "A" : "B";
+    const isSelected = state.selectedObserver === obsId;
+    const btnR = 7 * dScale;
+    const btnX = toSX(cx_phys);
+    const btnY = cy;
+
+    // Glow when selected
+    if (isSelected) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12 * dScale;
+    }
+    ctx.fillStyle = isSelected ? color : "rgba(10, 18, 30, 0.85)";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5 * dScale;
+    ctx.beginPath();
+    ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Eye icon inside button
+    ctx.fillStyle = isSelected ? "#07101e" : color;
+    ctx.font = `${Math.max(7, Math.round(9 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("◉", btnX, btnY);
+    ctx.textBaseline = "alphabetic";
+
+    // Register hit target
+    observerHitTargets.push({ id: obsId, x: btnX, y: btnY, r: btnR + 4 * dScale });
   }
 
   const hasEngineA = scenario === "bell";
@@ -673,19 +743,19 @@ function renderLab(phys) {
 
   // Ship Labels
   ctx.fillStyle = "#ffb866";
-  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP A`, sxCA, cy + sh_half + 18 * dScale);
   ctx.fillStyle = "rgba(150,200,245,0.55)";
-  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.fillText(`|← L₀/γ →|`, sxCA, cy + sh_half + 32 * dScale);
 
   ctx.fillStyle = "#66e5ff";
-  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP B`, sxCB, cy + sh_half + 18 * dScale);
   ctx.fillStyle = "rgba(150,200,245,0.55)";
-  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.fillText(`|← L₀/γ →|`, sxCB, cy + sh_half + 32 * dScale);
 
   // ── ROPE / CABLE ──
@@ -697,6 +767,36 @@ function renderLab(phys) {
   const isTow = scenario === "tow";
 
   drawRopeVisual(ctx, rxA, rxB, ry_rope, slackFraction, strainRatio, isBroken, isTow, dScale, now);
+
+  // ── Rope/Cable observer button (at midpoint, only when intact) ──
+  if (!isBroken) {
+    const ropeObsSelected = state.selectedObserver === "rope";
+    const ropeBtnR = 6 * dScale;
+    const [roR, roG, roB] = isTow ? [120, 180, 220] : ropeColorBell(strainRatio);
+    const ropeBtnColor = `rgb(${roR},${roG},${roB})`;
+
+    if (ropeObsSelected) {
+      ctx.shadowColor = ropeBtnColor;
+      ctx.shadowBlur = 10 * dScale;
+    }
+    ctx.fillStyle = ropeObsSelected ? ropeBtnColor : "rgba(10, 18, 30, 0.85)";
+    ctx.strokeStyle = ropeBtnColor;
+    ctx.lineWidth = 1.2 * dScale;
+    ctx.beginPath();
+    ctx.arc(midX, ry_rope, ropeBtnR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = ropeObsSelected ? "#07101e" : ropeBtnColor;
+    ctx.font = `${Math.max(6, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("◉", midX, ry_rope);
+    ctx.textBaseline = "alphabetic";
+
+    observerHitTargets.push({ id: "rope", x: midX, y: ry_rope, r: ropeBtnR + 4 * dScale });
+  }
 
   // Rope/Cable τ clock — always visible; orange + dimmed when broken
   {
@@ -716,7 +816,7 @@ function renderLab(phys) {
     const anY = ry_rope + 14 * dScale;
     const [cR, cG, cB] = ropeColorBell(strainRatio);
     ctx.fillStyle = `rgba(${cR},${cG},${cB},0.75)`;
-    ctx.font = `${Math.max(9, Math.round(10 * dScale))}px 'Space Mono', monospace`;
+    ctx.font = `${Math.max(9, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
     ctx.fillText(`stretch: ${phys.stretch.toFixed(3)} L`, midX, anY);
   }
@@ -744,7 +844,7 @@ function renderLab(phys) {
   ctx.stroke();
 
   ctx.fillStyle = gapTextColor;
-  ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   const gapLabel =
     scenario === "tow"
@@ -753,7 +853,7 @@ function renderLab(phys) {
   ctx.fillText(gapLabel, (sxCA + sxCB) / 2, bY + 18 * dScale);
 
   ctx.fillStyle = "rgba(86,197,240,0.35)";
-  ctx.font = `700 ${Math.max(8, Math.round(10 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `700 ${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "left";
   ctx.fillText("OBSERVER (LAB) FRAME — ships moving right", 10 * dScale, CH - 10 * dScale);
 }
@@ -762,6 +862,7 @@ function renderProper(phys) {
   const ctx = el.ctx;
   const { gamma, v, strain, isBroken, slackFraction, cable_prop, L_init, stretch, scenario } = phys;
   ctx.clearRect(0, 0, CW, CH);
+  observerHitTargets = [];
 
   const dScale = (CW / 800) * 1.35;
 
@@ -837,7 +938,7 @@ function renderProper(phys) {
     ctx.lineTo(midPx + halfNat, ry - 6 * dScale);
     ctx.stroke();
     ctx.fillStyle = "rgba(160,176,192,0.65)";
-    ctx.font = `${Math.max(9, Math.round(10 * dScale))}px 'Space Mono', monospace`;
+    ctx.font = `${Math.max(9, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
     ctx.fillText(`L₀ = ${L_init.toFixed(3)} L (natural)`, midPx, ry - 18 * dScale);
   }
@@ -913,6 +1014,35 @@ function renderProper(phys) {
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1.0;
+
+    // ── Observer button inside ship ──
+    const obsId = label === "A" ? "A" : "B";
+    const isSelected = state.selectedObserver === obsId;
+    const btnR = 7 * dScale;
+    const btnX = toSX(cx);
+    const btnY = cy;
+
+    if (isSelected) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12 * dScale;
+    }
+    ctx.fillStyle = isSelected ? color : "rgba(10, 18, 30, 0.85)";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5 * dScale;
+    ctx.beginPath();
+    ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = isSelected ? "#07101e" : color;
+    ctx.font = `${Math.max(7, Math.round(9 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("◉", btnX, btnY);
+    ctx.textBaseline = "alphabetic";
+
+    observerHitTargets.push({ id: obsId, x: btnX, y: btnY, r: btnR + 4 * dScale });
   }
 
   function drawProperPylon(psx) {
@@ -949,30 +1079,30 @@ function renderProper(phys) {
 
   // Ship Labels
   ctx.fillStyle = "#ffb866";
-  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP A`, sxA_center, cy + sh / 2 + 18 * dScale);
   ctx.fillStyle = "rgba(150,195,240,0.45)";
-  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.fillText(`S₀ = ${S0.toFixed(1)} L (proper)`, sxA_center, cy + sh / 2 + 32 * dScale);
 
   ctx.fillStyle = "#66e5ff";
-  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP B`, sxB_center, cy + sh / 2 + 18 * dScale);
   // Ship B is the origin / observer of this comoving frame
   ctx.fillStyle = "rgba(102,229,255,0.65)";
-  ctx.font = `${Math.max(8, Math.round(9 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(8, Math.round(9 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.fillText(`◉ frame observer`, sxB_center, cy + sh / 2 + 32 * dScale);
 
   // Observer star marker above Ship B roof
   const starY = cy - sh / 2 - 14 * dScale;
   ctx.fillStyle = "rgba(102,229,255,0.9)";
-  ctx.font = `bold ${Math.max(10, Math.round(11 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `bold ${Math.max(10, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText("★", sxB_center, starY);
   ctx.fillStyle = "rgba(102,229,255,0.55)";
-  ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.fillText("OBSERVER", sxB_center, starY + 11 * dScale);
 
   // ── ROPE / CABLE (Proper Frame) ──
@@ -980,6 +1110,36 @@ function renderProper(phys) {
   const isTow = scenario === "tow";
 
   drawRopeVisual(ctx, psx_A, psx_B, ry, slackFraction, strainRatio, isBroken, isTow, dScale, now);
+
+  // ── Rope/Cable observer button (at midpoint, only when intact) ──
+  if (!isBroken) {
+    const ropeObsSelected = state.selectedObserver === "rope";
+    const ropeBtnR = 6 * dScale;
+    const [roR, roG, roB] = isTow ? [120, 180, 220] : ropeColorBell(strainRatio);
+    const ropeBtnColor = `rgb(${roR},${roG},${roB})`;
+
+    if (ropeObsSelected) {
+      ctx.shadowColor = ropeBtnColor;
+      ctx.shadowBlur = 10 * dScale;
+    }
+    ctx.fillStyle = ropeObsSelected ? ropeBtnColor : "rgba(10, 18, 30, 0.85)";
+    ctx.strokeStyle = ropeBtnColor;
+    ctx.lineWidth = 1.2 * dScale;
+    ctx.beginPath();
+    ctx.arc(midPx, ry, ropeBtnR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = ropeObsSelected ? "#07101e" : ropeBtnColor;
+    ctx.font = `${Math.max(6, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("◉", midPx, ry);
+    ctx.textBaseline = "alphabetic";
+
+    observerHitTargets.push({ id: "rope", x: midPx, y: ry, r: ropeBtnR + 4 * dScale });
+  }
 
   // Rope/Cable τ clock — always visible; pass actual tau, never null.
   // When broken: orange tint + dimmed to show last valid time at snap.
@@ -1026,7 +1186,7 @@ function renderProper(phys) {
       ctx.fill();
     }
     ctx.fillStyle = `rgba(${aR},${aG},${aB},0.85)`;
-    ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'Space Mono', monospace`;
+    ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
     ctx.fillText(`stretch: ${stretch.toFixed(3)} L`, midPx, anY + 14 * dScale);
   }
@@ -1053,7 +1213,7 @@ function renderProper(phys) {
   ctx.stroke();
 
   ctx.fillStyle = gapTextColor;
-  ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   const propGapLabel =
     scenario === "tow"
@@ -1063,7 +1223,7 @@ function renderProper(phys) {
 
   // Frame annotation at bottom
   ctx.fillStyle = "rgba(86,197,240,0.35)";
-  ctx.font = `700 ${Math.max(8, Math.round(10 * dScale))}px 'Space Mono', monospace`;
+  ctx.font = `700 ${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "left";
   ctx.fillText("SHIP B's COMOVING FRAME — both ships at rest here", 10 * dScale, CH - 10 * dScale);
 }
@@ -1081,10 +1241,25 @@ function updateAll() {
   render(phys);
 }
 
-function updateBadge({ gamma, v, tau }) {
+function updateBadge(phys) {
+  const { gamma, v, tau } = phys;
   el.badgeGamma.textContent = gamma.toFixed(4);
   el.badgeV.textContent = v.toFixed(4);
-  el.badgeTau.textContent = tau.toFixed(3);
+
+  // Show selected observer's proper time, or default tau
+  let displayTau = tau;
+  let obsLabel = "";
+  if (state.selectedObserver === "A") {
+    displayTau = phys.tau_A_back != null ? phys.tau_A_back : tau;
+    obsLabel = " [A]";
+  } else if (state.selectedObserver === "B") {
+    displayTau = phys.tau_B_back != null ? phys.tau_B_back : tau;
+    obsLabel = " [B]";
+  } else if (state.selectedObserver === "rope") {
+    displayTau = phys.tau_cable != null ? phys.tau_cable : tau;
+    obsLabel = phys.scenario === "tow" ? " [cable]" : " [rope]";
+  }
+  el.badgeTau.textContent = (displayTau != null ? displayTau.toFixed(3) : "—") + obsLabel;
 }
 
 function updateScenarioUI({ scenario }) {
@@ -1383,6 +1558,47 @@ function setup() {
       state.view = tab.dataset.view;
       updateAll();
     });
+  });
+
+  // ── Observer button click + hover handlers ──
+  el.canvas.addEventListener("click", (e) => {
+    const rect = el.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const mx = (e.clientX - rect.left);
+    const my = (e.clientY - rect.top);
+
+    let hit = null;
+    for (const target of observerHitTargets) {
+      const dx = mx - target.x;
+      const dy = my - target.y;
+      if (dx * dx + dy * dy <= target.r * target.r) {
+        hit = target.id;
+        break;
+      }
+    }
+
+    if (hit) {
+      // Toggle: if already selected, deselect; otherwise select
+      state.selectedObserver = state.selectedObserver === hit ? null : hit;
+      updateAll();
+    }
+  });
+
+  el.canvas.addEventListener("mousemove", (e) => {
+    const rect = el.canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left);
+    const my = (e.clientY - rect.top);
+
+    let overButton = false;
+    for (const target of observerHitTargets) {
+      const dx = mx - target.x;
+      const dy = my - target.y;
+      if (dx * dx + dy * dy <= target.r * target.r) {
+        overButton = true;
+        break;
+      }
+    }
+    el.canvas.style.cursor = overButton ? "pointer" : "default";
   });
 
   window.addEventListener("resize", debounce(resizeCanvas, 80));
