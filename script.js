@@ -165,14 +165,20 @@ function computeBell() {
   // Slack fraction: how much of natural length is unused (rope sagging)
   const slackFraction = Math.max(0, (L_init - cable_prop) / L_init);
 
-  // Bell's paradox: both ships have identical independent proper acceleration α.
-  // Every observer on both ships shares the same proper time τ = arcsinh(αt)/α.
-  // Using the Rindler offset formula here would be wrong — that's for Born-rigid motion.
-  const tau_A_back  = tau;
-  const tau_A_front = tau;
-  const tau_B_back  = tau;
-  const tau_B_front = tau;
+  // Each ship is internally Born-rigid: front and rear have different
+  // proper accelerations → different proper times.  The rear (closer to
+  // the Rindler horizon) ticks slower; the front ticks faster.
+  // Both ships are identical (same α, same S₀) so A-pair = B-pair.
+  const tau_A_back  = getLocalTau(a, -0.5 * S0, t);
+  const tau_A_front = getLocalTau(a,  0.5 * S0, t);
+  const tau_B_back  = getLocalTau(a, -0.5 * S0, t);
+  const tau_B_front = getLocalTau(a,  0.5 * S0, t);
+  // Rope midpoint: same centre acceleration as ship centres
   const tau_cable   = tau;
+
+  // Centre proper times (for badge display — observer sits at ship centre)
+  const tau_A_center = tau;   // both centres share the same α
+  const tau_B_center = tau;
 
   return {
     scenario: "bell",
@@ -182,8 +188,8 @@ function computeBell() {
     prop_gap: gamma * L_gap,
     cable_lab, cable_prop,
     L_init, stretch, strain, isBroken, slackFraction,
-    tau_A_back, tau_A_front,
-    tau_B_back, tau_B_front,
+    tau_A_back, tau_A_front, tau_A_center,
+    tau_B_back, tau_B_front, tau_B_center,
     tau_cable,
   };
 }
@@ -220,8 +226,10 @@ function computeTow() {
 
   const tau_B_back = getLocalTau(a, -0.5 * S0, t);
   const tau_B_front = getLocalTau(a, 0.5 * S0, t);
+  const tau_B_center = tau;                            // Ship B centre is Rindler origin
   const tau_A_back = getLocalTau(a, -L_gap - 0.5 * S0, t);
   const tau_A_front = getLocalTau(a, -L_gap + 0.5 * S0, t);
+  const tau_A_center = getLocalTau(a, -L_gap, t);     // may be null (HORIZON)
   const tau_cable = getLocalTau(a, -L_gap / 2, t);
 
   return {
@@ -233,8 +241,8 @@ function computeTow() {
     cable_lab, cable_prop,
     L_init, stretch, strain, isBroken, slackFraction,
     mechTension,
-    tau_A_back, tau_A_front,
-    tau_B_back, tau_B_front,
+    tau_A_back, tau_A_front, tau_A_center,
+    tau_B_back, tau_B_front, tau_B_center,
     tau_cable,
   };
 }
@@ -688,37 +696,7 @@ function renderLab(phys) {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // ── Observer button inside ship ──
-    const obsId = label === "A" ? "A" : "B";
-    const isSelected = state.selectedObserver === obsId;
-    const btnR = 7 * dScale;
-    const btnX = toSX(cx_phys);
-    const btnY = cy;
-
-    // Glow when selected
-    if (isSelected) {
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 12 * dScale;
-    }
-    ctx.fillStyle = isSelected ? color : "rgba(10, 18, 30, 0.85)";
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5 * dScale;
-    ctx.beginPath();
-    ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Eye icon inside button
-    ctx.fillStyle = isSelected ? "#07101e" : color;
-    ctx.font = `${Math.max(7, Math.round(9 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("◉", btnX, btnY);
-    ctx.textBaseline = "alphabetic";
-
-    // Register hit target
-    observerHitTargets.push({ id: obsId, x: btnX, y: btnY, r: btnR + 4 * dScale });
+    // (Observer buttons are only shown in Proper Frame)
   }
 
   const hasEngineA = scenario === "bell";
@@ -768,35 +746,7 @@ function renderLab(phys) {
 
   drawRopeVisual(ctx, rxA, rxB, ry_rope, slackFraction, strainRatio, isBroken, isTow, dScale, now);
 
-  // ── Rope/Cable observer button (at midpoint, only when intact) ──
-  if (!isBroken) {
-    const ropeObsSelected = state.selectedObserver === "rope";
-    const ropeBtnR = 6 * dScale;
-    const [roR, roG, roB] = isTow ? [120, 180, 220] : ropeColorBell(strainRatio);
-    const ropeBtnColor = `rgb(${roR},${roG},${roB})`;
-
-    if (ropeObsSelected) {
-      ctx.shadowColor = ropeBtnColor;
-      ctx.shadowBlur = 10 * dScale;
-    }
-    ctx.fillStyle = ropeObsSelected ? ropeBtnColor : "rgba(10, 18, 30, 0.85)";
-    ctx.strokeStyle = ropeBtnColor;
-    ctx.lineWidth = 1.2 * dScale;
-    ctx.beginPath();
-    ctx.arc(midX, ry_rope, ropeBtnR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = ropeObsSelected ? "#07101e" : ropeBtnColor;
-    ctx.font = `${Math.max(6, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("◉", midX, ry_rope);
-    ctx.textBaseline = "alphabetic";
-
-    observerHitTargets.push({ id: "rope", x: midX, y: ry_rope, r: ropeBtnR + 4 * dScale });
-  }
+  // (Rope/Cable observer button is only shown in Proper Frame)
 
   // Rope/Cable τ clock — always visible; orange + dimmed when broken
   {
@@ -1078,46 +1028,79 @@ function renderProper(phys) {
   drawProperPylon(psx_B);
 
   // Ship Labels
+  // Ship labels
   ctx.fillStyle = "#ffb866";
   ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP A`, sxA_center, cy + sh / 2 + 18 * dScale);
-  ctx.fillStyle = "rgba(150,195,240,0.45)";
-  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.fillText(`S₀ = ${S0.toFixed(1)} L (proper)`, sxA_center, cy + sh / 2 + 32 * dScale);
+  {
+    const isObsA = state.selectedObserver === "A";
+    ctx.fillStyle = isObsA ? "rgba(255,184,102,0.65)" : "rgba(150,195,240,0.45)";
+    ctx.font = `${Math.max(8, Math.round(isObsA ? 9 : 10) * dScale)}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.fillText(
+      isObsA ? `◉ OBSERVER` : `S₀ = ${S0.toFixed(1)} L (proper)`,
+      sxA_center, cy + sh / 2 + 32 * dScale
+    );
+  }
 
   ctx.fillStyle = "#66e5ff";
   ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP B`, sxB_center, cy + sh / 2 + 18 * dScale);
-  // Ship B is the origin / observer of this comoving frame
-  ctx.fillStyle = "rgba(102,229,255,0.65)";
-  ctx.font = `${Math.max(8, Math.round(9 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.fillText(`◉ frame observer`, sxB_center, cy + sh / 2 + 32 * dScale);
-
-  // Observer star marker above Ship B roof
-  const starY = cy - sh / 2 - 14 * dScale;
-  ctx.fillStyle = "rgba(102,229,255,0.9)";
-  ctx.font = `bold ${Math.max(10, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.textAlign = "center";
-  ctx.fillText("★", sxB_center, starY);
-  ctx.fillStyle = "rgba(102,229,255,0.55)";
-  ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.fillText("OBSERVER", sxB_center, starY + 11 * dScale);
+  {
+    const isObsB = state.selectedObserver === "B" || state.selectedObserver === null;
+    ctx.fillStyle = isObsB ? "rgba(102,229,255,0.65)" : "rgba(150,195,240,0.45)";
+    ctx.font = `${Math.max(8, Math.round(isObsB ? 9 : 10) * dScale)}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.fillText(
+      isObsB ? `◉ OBSERVER` : `S₀ = ${S0.toFixed(1)} L (proper)`,
+      sxB_center, cy + sh / 2 + 32 * dScale
+    );
+  }
 
   // ── ROPE / CABLE (Proper Frame) ──
   const strainRatio = Math.min(1.0, strain / state.breakStrain);
   const isTow = scenario === "tow";
 
+  // ── Observer star marker — follows selectedObserver ──
+  {
+    const obs = state.selectedObserver;
+    let starX, starColor;
+    if (obs === "A") {
+      starX = sxA_center;
+      starColor = "rgba(255,184,102,0.9)";
+    } else if (obs === "rope") {
+      starX = midPx;
+      const [roR, roG, roB] = isTow ? [120, 180, 220] : ropeColorBell(strainRatio);
+      starColor = `rgb(${roR},${roG},${roB})`;
+    } else {
+      // Default (B or null) — Ship B is the natural comoving-frame origin
+      starX = sxB_center;
+      starColor = "rgba(102,229,255,0.9)";
+    }
+    // Position star above the pylon ball (ships) or above L₀ bracket (rope)
+    const starY = obs === "rope" ? ry - 28 * dScale : ry - 14 * dScale;
+    ctx.fillStyle = starColor;
+    ctx.font = `bold ${Math.max(10, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText("★", starX, starY);
+    ctx.globalAlpha = 0.6;
+    ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.fillText("OBSERVER", starX, starY + 11 * dScale);
+    ctx.globalAlpha = 1.0;
+  }
+
   drawRopeVisual(ctx, psx_A, psx_B, ry, slackFraction, strainRatio, isBroken, isTow, dScale, now);
 
-  // ── Rope/Cable observer button (at midpoint, only when intact) ──
-  if (!isBroken) {
+  // ── Rope/Cable observer button (at midpoint — always visible, even after break) ──
+  {
     const ropeObsSelected = state.selectedObserver === "rope";
     const ropeBtnR = 6 * dScale;
-    const [roR, roG, roB] = isTow ? [120, 180, 220] : ropeColorBell(strainRatio);
+    const [roR, roG, roB] = isBroken
+      ? [180, 140, 100]    // muted brown when broken
+      : (isTow ? [120, 180, 220] : ropeColorBell(strainRatio));
     const ropeBtnColor = `rgb(${roR},${roG},${roB})`;
 
+    if (isBroken) ctx.globalAlpha = 0.6;
     if (ropeObsSelected) {
       ctx.shadowColor = ropeBtnColor;
       ctx.shadowBlur = 10 * dScale;
@@ -1137,6 +1120,7 @@ function renderProper(phys) {
     ctx.textBaseline = "middle";
     ctx.fillText("◉", midPx, ry);
     ctx.textBaseline = "alphabetic";
+    ctx.globalAlpha = 1.0;
 
     observerHitTargets.push({ id: "rope", x: midPx, y: ry, r: ropeBtnR + 4 * dScale });
   }
@@ -1246,17 +1230,17 @@ function updateBadge(phys) {
   el.badgeGamma.textContent = gamma.toFixed(4);
   el.badgeV.textContent = v.toFixed(4);
 
-  // Show selected observer's proper time, or default tau
+  // Show selected observer's proper time (at ship centre), or default tau
   let displayTau = tau;
   let obsLabel = "";
   if (state.selectedObserver === "A") {
-    displayTau = phys.tau_A_back != null ? phys.tau_A_back : tau;
+    displayTau = phys.tau_A_center != null ? phys.tau_A_center : null;
     obsLabel = " [A]";
   } else if (state.selectedObserver === "B") {
-    displayTau = phys.tau_B_back != null ? phys.tau_B_back : tau;
+    displayTau = phys.tau_B_center != null ? phys.tau_B_center : null;
     obsLabel = " [B]";
   } else if (state.selectedObserver === "rope") {
-    displayTau = phys.tau_cable != null ? phys.tau_cable : tau;
+    displayTau = phys.tau_cable != null ? phys.tau_cable : null;
     obsLabel = phys.scenario === "tow" ? " [cable]" : " [rope]";
   }
   el.badgeTau.textContent = (displayTau != null ? displayTau.toFixed(3) : "—") + obsLabel;
