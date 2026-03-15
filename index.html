@@ -20,8 +20,9 @@
         </div>
         <h1>Bell's Spaceship Paradox</h1>
         <p class="header-sub">
-          Why must a fragile rope between two identically-accelerating spaceships
-          eventually snap — and what happens when only one ship fires?
+          Why must a fragile rope between two identically-accelerating
+          spaceships eventually snap — and what happens when only one ship
+          fires?
         </p>
       </header>
 
@@ -39,7 +40,16 @@
                 <span class="info-wrap" style="vertical-align: middle">
                   <span class="info-btn">i</span>
                   <span class="info-tip"
-                    >The instantaneous comoving rest frame of <strong>Ship B</strong> (the leading ship, in the direction of acceleration). Both ships are momentarily at rest here — the observer (★) rides in Ship B. Notice the Doppler shift (redshift rear, blueshift front) simulating an equivalent gravitational field (Rindler space). Due to <em>relativity of simultaneity</em>, Ship B appears to have started its engine slightly earlier from this frame — causing the proper gap between the ships to grow over time.</span
+                    >The instantaneous comoving rest frame of
+                    <strong>Ship B</strong> (the leading ship, in the direction
+                    of acceleration). Both ships are momentarily at rest here —
+                    the observer (★) rides in Ship B. Notice the Doppler shift
+                    (redshift rear, blueshift front) simulating an equivalent
+                    gravitational field (Rindler space). Due to
+                    <em>relativity of simultaneity</em>, Ship B appears to have
+                    started its engine slightly earlier from this frame —
+                    causing the proper gap between the ships to grow over
+                    time.</span
                   >
                 </span>
               </button>
@@ -131,8 +141,8 @@
                       <span class="info-btn">i</span>
                       <span class="info-tip" id="ctrl-break-tip"
                         >Maximum fractional elongation the rope can endure
-                        before snapping. A truly inextensible rope has near
-                        0%. Higher values = more forgiving material.</span
+                        before snapping. A truly inextensible rope has near 0%.
+                        Higher values = more forgiving material.</span
                       >
                     </span>
                   </span>
@@ -151,19 +161,33 @@
 
             <!-- Rope Length Selector (Bell's mode only) -->
             <div id="rope-length-row" class="rope-length-row">
-              <div class="ctrl-label" style="margin-bottom:0.5rem">
-                <span class="ctrl-name">Rope Natural Length (L₀)
+              <div class="ctrl-label" style="margin-bottom: 0.5rem">
+                <span class="ctrl-name"
+                  >Rope Natural Length (L₀)
                   <span class="info-wrap">
                     <span class="info-btn">i</span>
-                    <span class="info-tip">Natural rest length as a multiple of the initial attachment-point gap (D + offset from attachment positions). 1.0× = rope exactly spans the gap between attachment points (no slack). 1.5× or 2.0× = extra slack — the rope sags before relativistic stretching takes over.</span>
+                    <span class="info-tip"
+                      >Natural rest length as a multiple of the initial
+                      attachment-point gap (D + offset from attachment
+                      positions). 1.0× = rope exactly spans the gap between
+                      attachment points (no slack). 1.5× or 2.0× = extra slack —
+                      the rope sags before relativistic stretching takes
+                      over.</span
+                    >
                   </span>
                 </span>
                 <span class="ctrl-val" id="val-rope-length">1.5 × D</span>
               </div>
               <div class="rope-length-btns">
-                <button class="rope-btn" data-rope="1.0">1.0 × D <span class="rope-btn-sub">No slack</span></button>
-                <button class="rope-btn active" data-rope="1.5">1.5 × D <span class="rope-btn-sub">Half slack</span></button>
-                <button class="rope-btn" data-rope="2.0">2.0 × D <span class="rope-btn-sub">Full slack</span></button>
+                <button class="rope-btn" data-rope="1.0">
+                  1.0 × D <span class="rope-btn-sub">No slack</span>
+                </button>
+                <button class="rope-btn active" data-rope="1.5">
+                  1.5 × D <span class="rope-btn-sub">Half slack</span>
+                </button>
+                <button class="rope-btn" data-rope="2.0">
+                  2.0 × D <span class="rope-btn-sub">Full slack</span>
+                </button>
               </div>
             </div>
 
@@ -189,8 +213,8 @@
                     <span class="sc-name">Tow Mode (B only)</span>
                   </div>
                   <div class="sc-desc">
-                    Only Ship B fires. Strong cable drags Ship A. System moves as a
-                    rigid unit — proper gap stays constant. Cable intact.
+                    Only Ship B fires. Strong cable drags Ship A. System moves
+                    as a rigid unit — proper gap stays constant. Cable intact.
                   </div>
                 </label>
               </div>
@@ -206,9 +230,9 @@
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
                       <span class="info-tip"
-                        >Where the rope connects to Ship A. Moves the
-                        attachment point relative to the ship's center, changing
-                        the rope's natural length L₀.</span
+                        >Where the rope connects to Ship A. Moves the attachment
+                        point relative to the ship's center, changing the rope's
+                        natural length L₀.</span
                       >
                     </span>
                   </label>
@@ -229,8 +253,8 @@
                       <span class="info-tip"
                         >Connecting the rope to the far ends increases its
                         natural length L₀. Since the absolute stretch D·(γ−1) is
-                        fixed, a longer rope experiences a smaller PERCENTAGE
-                        of strain, surviving slightly longer.</span
+                        fixed, a longer rope experiences a smaller PERCENTAGE of
+                        strain, surviving slightly longer.</span
                       >
                     </span>
                   </label>
@@ -319,12 +343,14 @@
                   <span class="info-wrap"
                     ><span class="info-btn">i</span
                     ><span class="info-tip"
-                      >The unstressed rest length of the rope at t=0. Depends
-                      on initial gap, rope length factor, and attachment
+                      >The unstressed rest length of the rope at t=0. Depends on
+                      initial gap, rope length factor, and attachment
                       offsets.</span
                     ></span
                   >
-                  <span class="eq-formula" id="eq-linit-formula">1.0×(D+(ΔAttach)·S₀)</span>
+                  <span class="eq-formula" id="eq-linit-formula"
+                    >1.0×(D+(ΔAttach)·S₀)</span
+                  >
                 </div>
                 <div class="eq-result cable-color" id="eq-linit">3.0000 L</div>
 
@@ -348,8 +374,8 @@
                   <span class="info-wrap"
                     ><span class="info-btn">i</span
                     ><span class="info-tip"
-                      >The length of the rope as measured in its own rest
-                      frame. This is what the rope "feels."</span
+                      >The length of the rope as measured in its own rest frame.
+                      This is what the rope "feels."</span
                     ></span
                   >
                   <span class="eq-formula">Coord. Span × γ</span>
@@ -415,10 +441,10 @@
                 <summary>ℹ Details ▾</summary>
                 <p class="insight-sub" id="insight-sub">
                   The absolute stretch equals D·(γ−1) regardless of where the
-                  rope is attached. Moving attachment points apart only lengthens
-                  L₀ — reducing the <em>percentage</em> of strain without reducing
-                  the absolute elongation. A fragile rope snaps almost
-                  immediately.
+                  rope is attached. Moving attachment points apart only
+                  lengthens L₀ — reducing the <em>percentage</em> of strain
+                  without reducing the absolute elongation. A fragile rope snaps
+                  almost immediately.
                 </p>
               </details>
             </div>
@@ -504,12 +530,15 @@
                 ship Lorentz-contracts — at speed v the ship has length S₀/γ. An
                 unstressed rope of natural length D would also contract to D/γ.
                 The anchored ships <em>prevent</em> this contraction, forcing
-                the rope to span the full gap D. The rope's proper length
-                grows as γ·D while its natural length stays L₀ → it stretches and
+                the rope to span the full gap D. The rope's proper length grows
+                as γ·D while its natural length stays L₀ → it stretches and
                 snaps once the strain exceeds its tolerance.
               </div>
               <div class="callout callout-b">
-                <strong>Proper Frame (Ship B) — the same result, different view:</strong>
+                <strong
+                  >Proper Frame (Ship B) — the same result, different
+                  view:</strong
+                >
                 In Ship B's instantaneous rest frame,
                 <em>relativity of simultaneity</em> means the two "start" events
                 are not simultaneous. Ship B (front, in the direction of
