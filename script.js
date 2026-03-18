@@ -316,26 +316,25 @@ function computeTow() {
   const mechTension = 1.0;
 
   // Lab frame proper times (at Lab time t)
+  // In this simplified tow model, Ship A follows the same Rindler worldline shape
+  // as Ship B (X = 1/a), so local clock rates are identical for both ships.
   const tau_B_back = getLocalTau(a, -0.5 * S0, t);
   const tau_B_front = getLocalTau(a, 0.5 * S0, t);
   const tau_B_center = tau;
-  const tau_A_back = getLocalTau(a, -L_gap - 0.5 * S0, t);
-  const tau_A_front = getLocalTau(a, -L_gap + 0.5 * S0, t);
-  const tau_A_center = getLocalTau(a, -L_gap, t);
-  const tau_cable = getLocalTau(a, -L_gap / 2, t);
+  const tau_A_back = getLocalTau(a, -0.5 * S0, t);
+  const tau_A_front = getLocalTau(a, 0.5 * S0, t);
+  const tau_A_center = tau;
+  const tau_cable = tau;
 
   // Proper frame proper times (evaluated at the surface of simultaneity of the selected observer)
+  // Use actual lab positions from the simplified model (not Born rigid Rindler coordinates,
+  // which go negative for typical parameters when L_gap > 1/a).
   let x_O, v_O;
   const obs = state.selectedObserver || "B";
-  let X_O = 1 / a; // default to B
-  if (obs === "A") X_O = 1 / a - L_gap;
-  else if (obs === "rope") X_O = 1 / a - L_gap / 2;
-
-  // Fallback to B if the selected observer is beyond the Rindler horizon
-  if (X_O <= 0.001) X_O = 1 / a;
-
-  x_O = Math.sqrt(X_O * X_O + t * t) - 1 / a + L_gap;
-  v_O = t / Math.sqrt(X_O * X_O + t * t);
+  x_O = C_B;
+  v_O = v;
+  if (obs === "A") x_O = C_A;
+  else if (obs === "rope") x_O = (C_A + C_B) / 2;
 
   const pf_tau_B_back = getTauAtSimultaneousTime(
     1 / a - 0.5 * S0,
@@ -359,31 +358,33 @@ function computeTow() {
     v_O,
   );
 
+  // Ship A's worldline in this model matches Rindler X = 1/a, offset = -1/a
+  // (same shape as Ship B, just starting at position 0 instead of L_gap)
   const pf_tau_A_back = getTauAtSimultaneousTime(
-    1 / a - L_gap - 0.5 * S0,
-    -1 / a + L_gap,
+    1 / a - 0.5 * S0,
+    -1 / a,
     t,
     x_O,
     v_O,
   );
   const pf_tau_A_front = getTauAtSimultaneousTime(
-    1 / a - L_gap + 0.5 * S0,
-    -1 / a + L_gap,
+    1 / a + 0.5 * S0,
+    -1 / a,
     t,
     x_O,
     v_O,
   );
   const pf_tau_A_center = getTauAtSimultaneousTime(
-    1 / a - L_gap,
-    -1 / a + L_gap,
+    1 / a,
+    -1 / a,
     t,
     x_O,
     v_O,
   );
 
   const pf_tau_cable = getTauAtSimultaneousTime(
-    1 / a - L_gap / 2,
-    -1 / a + L_gap,
+    1 / a,
+    -1 / a + L_gap / 2,
     t,
     x_O,
     v_O,
@@ -1040,10 +1041,11 @@ function renderLab(phys) {
       : ropeColorBell(isBroken ? 1 : strainRatio);
     const clockColor = isBroken ? "rgb(255,105,55)" : `rgb(${cR},${cG},${cB})`;
     if (isBroken) ctx.globalAlpha = 0.5;
+    const ropeClockY = Math.max(20 * dScale, ry_rope - 44 * dScale);
     drawClock(
       ctx,
       midX,
-      ry_rope - 44 * dScale,
+      ropeClockY,
       midX,
       ry_rope,
       phys.tau_cable,
@@ -1444,12 +1446,15 @@ function renderProper(phys) {
   // ── Observer star marker — follows selectedObserver ──
   {
     const obs = state.selectedObserver;
-    let starX, starColor;
+    let starX, starY, starColor;
     if (obs === "A") {
       starX = sxA_center;
+      starY = ry - 14 * dScale;
       starColor = "rgba(255,184,102,0.9)";
     } else if (obs === "rope") {
-      starX = midPx;
+      // Place to the left of the rope midpoint to avoid overlapping the ROPE τ clock
+      starX = midPx - 55 * dScale;
+      starY = ry;
       const [roR, roG, roB] = isTow
         ? [120, 180, 220]
         : ropeColorBell(strainRatio);
@@ -1457,11 +1462,9 @@ function renderProper(phys) {
     } else {
       // Default (B or null) — Ship B is the natural comoving-frame origin
       starX = sxB_center;
+      starY = ry - 14 * dScale;
       starColor = "rgba(102,229,255,0.9)";
     }
-    // Position star above the pylon ball (ships) or above L₀ bracket (rope)
-    // Shifted higher for the rope so it does not overlap the L₀ text
-    const starY = obs === "rope" ? ry - 40 * dScale : ry - 14 * dScale;
     ctx.fillStyle = starColor;
     ctx.font = `bold ${Math.max(10, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
@@ -1536,11 +1539,10 @@ function renderProper(phys) {
       ? "rgb(255,105,55)"
       : `rgb(${cR},${cG},${cB})`;
     if (isBroken) ctx.globalAlpha = 0.55;
-    // Shifted higher to accommodate the star marker
     drawClock(
       ctx,
       midPx,
-      ry - 65 * dScale,
+      ry - 44 * dScale,
       midPx,
       ry,
       phys.pf_tau_cable,
