@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════
-const S0 = 1.0; // Proper ship length (light-years)
+const Physics = window.RelativityPhysics;
+const { S0 } = Physics;
 
 const state = {
   t: 0.0,
@@ -47,6 +48,7 @@ const el = {
   slA: $("sl-a"),
   slGap: $("sl-gap"),
   slBreak: $("sl-break"),
+  slRopeLength: $("sl-rope-length"),
   valT: $("val-t"),
   valA: $("val-a"),
   valGap: $("val-gap"),
@@ -63,11 +65,16 @@ const el = {
   badgeV: $("badge-v"),
   badgeTau: $("badge-tau"),
   scenarioBadge: $("scenario-badge"),
+  observerBadge: $("observer-badge"),
 
   eqV: $("eq-v"),
+  eqVFormula: $("eq-v-formula"),
   eqGamma: $("eq-gamma"),
+  eqGammaFormula: $("eq-gamma-formula"),
   eqTau: $("eq-tau"),
+  eqTauFormula: $("eq-tau-formula"),
   eqSlab: $("eq-slab"),
+  eqSlabFormula: $("eq-slab-formula"),
   eqSlabLabel: $("eq-slab-label"),
   eqLabgap: $("eq-labgap"),
   eqLabgapLabel: $("eq-labgap-label"),
@@ -83,9 +90,13 @@ const el = {
   eqRlabLabel: $("eq-rlab-label"),
   eqRlabFormula: $("eq-rlab-formula"),
   eqRprop: $("eq-rprop"),
+  eqRpropFormula: $("eq-rprop-formula"),
   eqRpropLabel: $("eq-rprop-label"),
+  eqStretchLabelText: $("eq-stretch-label-text"),
   eqStretch: $("eq-stretch"),
   eqStretchFormula: $("eq-stretch-formula"),
+  eqStrainLabelText: $("eq-strain-label-text"),
+  eqStrainFormula: $("eq-strain-formula"),
   eqStrain: $("eq-strain"),
   eqMechDivider: $("eq-mech-divider"),
   eqMechLabel: $("eq-mech-label"),
@@ -97,10 +108,13 @@ const el = {
 
   svStrain: $("sv-strain"),
   svStrainLabel: $("sv-strain-label"),
+  svBreakLabel: $("sv-break-label"),
   svBreak: $("sv-break"),
+  svStretchLabel: $("sv-stretch-label"),
   svStretch: $("sv-stretch"),
   statusBadge: $("status-badge"),
   strainFill: $("strain-fill"),
+  strainBarNote: $("strain-bar-note"),
   towExtra: $("tow-extra"),
   svMechLoad: $("sv-mech-load"),
   svTowGap: $("sv-tow-gap"),
@@ -119,318 +133,104 @@ let CW = 0,
 let lastTime = 0,
   animId = null;
 
-// ═══════════════════════════════════════════════
-// PHYSICS
-// ═══════════════════════════════════════════════
-
-function getLocalTau(a_center, x_local, t) {
-  let denom = 1.0 + a_center * x_local;
-  if (denom <= 0.001) return null;
-  let a_local = a_center / denom;
-  return Math.asinh(a_local * t) / a_local;
-}
-
-// Solves for the Lab time t' at which the worldline of a point (defined by its Rindler X and x_offset)
-// intersects the surface of simultaneity of an observer at (x_O, t_lab) moving with velocity v_O.
-function getSimultaneousTime(X, x_offset, t_lab, x_O, v_O) {
-  const C = t_lab - v_O * x_O + v_O * x_offset;
-  const gamma_O_sq = 1.0 / (1.0 - v_O * v_O);
-  if (v_O === 0) return C;
-  const inside = C * C + (X * X) / gamma_O_sq;
-  if (inside < 0) return C;
-  return gamma_O_sq * (C + v_O * Math.sqrt(inside));
-}
-
-// Returns the proper time of a point (defined by X and x_offset) at the event simultaneous with the selected observer
-function getTauAtSimultaneousTime(X, x_offset, t_lab, x_O, v_O) {
-  if (X <= 0.001) return null;
-  const t_prime = getSimultaneousTime(X, x_offset, t_lab, x_O, v_O);
-  return X * Math.asinh(t_prime / X);
-}
-
-function computeBell() {
-  const { t, a, L_gap, aA, aB, ropeLength } = state;
-  const at = a * t;
-  const gamma = Math.sqrt(1.0 + at * at);
-  const v = at / gamma;
-  const tau = Math.asinh(at) / a;
-  const S_lab = S0 / gamma;
-  const x_disp = (gamma - 1.0) / a;
-
-  const C_A = x_disp;
-  const C_B = x_disp + L_gap;
-
-  const E_A = C_A - 0.5 * S_lab;
-  const E_B = C_B - 0.5 * S_lab;
-
-  const P_A = C_A + aA * S_lab;
-  const P_B = C_B + aB * S_lab;
-
-  const cable_lab = P_B - P_A;
-  const cable_prop = cable_lab * gamma;
-
-  const L_init = ropeLength * (L_gap + (aB - aA) * S0);
-
-  const stretch = Math.max(0, cable_prop - L_init);
-  const strain = stretch > 0 ? stretch / L_init : 0;
-  const isBroken = strain > state.breakStrain;
-  const slackFraction = Math.max(0, (L_init - cable_prop) / L_init);
-
-  // Lab frame proper times (at Lab time t)
-  const tau_A_back = getLocalTau(a, -0.5 * S0, t);
-  const tau_A_front = getLocalTau(a, 0.5 * S0, t);
-  const tau_B_back = getLocalTau(a, -0.5 * S0, t);
-  const tau_B_front = getLocalTau(a, 0.5 * S0, t);
-  const tau_cable = tau;
-  const tau_A_center = tau;
-  const tau_B_center = tau;
-
-  // Proper frame proper times (evaluated at the surface of simultaneity of the selected observer)
-  let x_O, v_O;
-  const obs = state.selectedObserver || "B";
-  if (obs === "A") {
-    x_O = Math.sqrt(1 / (a * a) + t * t) - 1 / a;
-    v_O = t / Math.sqrt(1 / (a * a) + t * t);
-  } else if (obs === "B") {
-    x_O = Math.sqrt(1 / (a * a) + t * t) - 1 / a + L_gap;
-    v_O = t / Math.sqrt(1 / (a * a) + t * t);
-  } else if (obs === "rope") {
-    const x_A = Math.sqrt(1 / (a * a) + t * t) - 1 / a;
-    const x_B = Math.sqrt(1 / (a * a) + t * t) - 1 / a + L_gap;
-    x_O = (x_A + x_B) / 2;
-    v_O = t / Math.sqrt(1 / (a * a) + t * t);
-  }
-
-  const pf_tau_A_back = getTauAtSimultaneousTime(
-    1 / a - 0.5 * S0,
-    -1 / a,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_A_front = getTauAtSimultaneousTime(
-    1 / a + 0.5 * S0,
-    -1 / a,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_A_center = getTauAtSimultaneousTime(1 / a, -1 / a, t, x_O, v_O);
-
-  const pf_tau_B_back = getTauAtSimultaneousTime(
-    1 / a - 0.5 * S0,
-    -1 / a + L_gap,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_B_front = getTauAtSimultaneousTime(
-    1 / a + 0.5 * S0,
-    -1 / a + L_gap,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_B_center = getTauAtSimultaneousTime(
-    1 / a,
-    -1 / a + L_gap,
-    t,
-    x_O,
-    v_O,
-  );
-
-  const pf_tau_cable = getTauAtSimultaneousTime(
-    1 / a,
-    -1 / a + L_gap / 2,
-    t,
-    x_O,
-    v_O,
-  );
-
-  return {
-    scenario: "bell",
-    gamma,
-    v,
-    tau,
-    S_lab,
-    C_A,
-    C_B,
-    E_A,
-    E_B,
-    P_A,
-    P_B,
-    lab_gap: L_gap,
-    prop_gap: gamma * L_gap,
-    cable_lab,
-    cable_prop,
-    L_init,
-    stretch,
-    strain,
-    isBroken,
-    slackFraction,
-    tau_A_back,
-    tau_A_front,
-    tau_A_center,
-    tau_B_back,
-    tau_B_front,
-    tau_B_center,
-    tau_cable,
-    pf_tau_A_back,
-    pf_tau_A_front,
-    pf_tau_A_center,
-    pf_tau_B_back,
-    pf_tau_B_front,
-    pf_tau_B_center,
-    pf_tau_cable,
-  };
-}
-
-function computeTow() {
-  const { t, a, L_gap, aA, aB } = state;
-  const at = a * t;
-  const gamma = Math.sqrt(1.0 + at * at);
-  const v = at / gamma;
-  const tau = Math.asinh(at) / a;
-  const S_lab = S0 / gamma;
-
-  const labGap = L_gap / gamma;
-  const x_disp = (gamma - 1.0) / a;
-
-  const C_A = x_disp;
-  const C_B = x_disp + labGap;
-
-  const E_A = null;
-  const E_B = C_B - 0.5 * S_lab;
-
-  const P_A = C_A + aA * S_lab;
-  const P_B = C_B + aB * S_lab;
-
-  const cable_lab = P_B - P_A;
-  const cable_prop = cable_lab * gamma;
-  const L_init = L_gap + (aB - aA) * S0;
-
-  const stretch = 0.0;
-  const strain = 0.0;
-  const isBroken = false;
-  const slackFraction = 0.0;
-  const mechTension = 1.0;
-
-  // Lab frame proper times (at Lab time t)
-  // In this simplified tow model, Ship A follows the same Rindler worldline shape
-  // as Ship B (X = 1/a), so local clock rates are identical for both ships.
-  const tau_B_back = getLocalTau(a, -0.5 * S0, t);
-  const tau_B_front = getLocalTau(a, 0.5 * S0, t);
-  const tau_B_center = tau;
-  const tau_A_back = getLocalTau(a, -0.5 * S0, t);
-  const tau_A_front = getLocalTau(a, 0.5 * S0, t);
-  const tau_A_center = tau;
-  const tau_cable = tau;
-
-  // Proper frame proper times (evaluated at the surface of simultaneity of the selected observer)
-  // Use actual lab positions from the simplified model (not Born rigid Rindler coordinates,
-  // which go negative for typical parameters when L_gap > 1/a).
-  let x_O, v_O;
-  const obs = state.selectedObserver || "B";
-  x_O = C_B;
-  v_O = v;
-  if (obs === "A") x_O = C_A;
-  else if (obs === "rope") x_O = (C_A + C_B) / 2;
-
-  const pf_tau_B_back = getTauAtSimultaneousTime(
-    1 / a - 0.5 * S0,
-    -1 / a + L_gap,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_B_front = getTauAtSimultaneousTime(
-    1 / a + 0.5 * S0,
-    -1 / a + L_gap,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_B_center = getTauAtSimultaneousTime(
-    1 / a,
-    -1 / a + L_gap,
-    t,
-    x_O,
-    v_O,
-  );
-
-  // Ship A's worldline in this model matches Rindler X = 1/a, offset = -1/a
-  // (same shape as Ship B, just starting at position 0 instead of L_gap)
-  const pf_tau_A_back = getTauAtSimultaneousTime(
-    1 / a - 0.5 * S0,
-    -1 / a,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_A_front = getTauAtSimultaneousTime(
-    1 / a + 0.5 * S0,
-    -1 / a,
-    t,
-    x_O,
-    v_O,
-  );
-  const pf_tau_A_center = getTauAtSimultaneousTime(
-    1 / a,
-    -1 / a,
-    t,
-    x_O,
-    v_O,
-  );
-
-  const pf_tau_cable = getTauAtSimultaneousTime(
-    1 / a,
-    -1 / a + L_gap / 2,
-    t,
-    x_O,
-    v_O,
-  );
-
-  return {
-    scenario: "tow",
-    gamma,
-    v,
-    tau,
-    S_lab,
-    C_A,
-    C_B,
-    E_A,
-    E_B,
-    P_A,
-    P_B,
-    lab_gap: labGap,
-    prop_gap: L_gap,
-    cable_lab,
-    cable_prop,
-    L_init,
-    stretch,
-    strain,
-    isBroken,
-    slackFraction,
-    mechTension,
-    tau_A_back,
-    tau_A_front,
-    tau_A_center,
-    tau_B_back,
-    tau_B_front,
-    tau_B_center,
-    tau_cable,
-    pf_tau_A_back,
-    pf_tau_A_front,
-    pf_tau_A_center,
-    pf_tau_B_back,
-    pf_tau_B_front,
-    pf_tau_B_center,
-    pf_tau_cable,
-  };
-}
-
 function compute() {
-  return state.scenario === "tow" ? computeTow() : computeBell();
+  return Physics.compute(state);
+}
+
+function selectedProperObserver() {
+  return state.selectedObserver || "B";
+}
+
+function selectedObserverName(phys = null) {
+  if (state.view === "lab") return "Lab frame";
+  const selected = selectedProperObserver();
+  if (selected === "A") return "Ship A";
+  if (selected === "rope") {
+    if (phys?.scenario === "born") return "Reference midpoint";
+    return phys?.scenario === "tow" ? "Cable midpoint" : "Rope midpoint";
+  }
+  return "Ship B";
+}
+
+function selectedObserverVelocity(phys) {
+  const selected = selectedProperObserver();
+  if (selected === "A") return phys.vA ?? phys.v;
+  if (selected === "rope") return ((phys.vA ?? phys.v) + (phys.vB ?? phys.v)) / 2;
+  return phys.vB ?? phys.v;
+}
+
+function strainRatioForDisplay(phys) {
+  if (!phys.strainDefined || phys.spanDegenerate) return 0;
+  if (phys.scenario === "born") return 0;
+  if (phys.scenario === "tow") return Math.min(1, phys.loadIndex ?? phys.towLoad ?? 0);
+  return Math.min(1, phys.strain / Math.max(Physics.EPS, state.breakStrain));
+}
+
+function formatStrainPercent(phys) {
+  if (!phys.strainDefined || phys.spanDegenerate) return "n/a";
+  return `${(phys.strain * 100).toFixed(3)}%`;
+}
+
+function formatLoadIndex(phys) {
+  if (!phys.strainDefined || phys.spanDegenerate) return "n/a";
+  return `${(phys.loadIndex ?? phys.towLoad ?? 0).toFixed(3)}× ref`;
+}
+
+function formatFixed(value, digits = 4, suffix = "") {
+  if (value === null || !Number.isFinite(value)) return "n/a";
+  return `${value.toFixed(digits)}${suffix}`;
+}
+
+function connectorClockLabel(scenario) {
+  if (scenario === "born") return "REF τ";
+  return scenario === "tow" ? "CABLE τ" : "ROPE τ";
+}
+
+function frameClockTau(phys, key) {
+  if (state.view === "proper") {
+    return phys[`slice_tau_${key}`] ?? null;
+  }
+  return phys[`clock_tau_${key}`] ?? null;
+}
+
+function displayedProperGap(phys) {
+  if (
+    phys?.scenario === "bell" &&
+    state.view === "proper" &&
+    Number.isFinite(phys.slice_gap)
+  ) {
+    return phys.slice_gap;
+  }
+  return phys?.prop_gap ?? 0;
+}
+
+function plumeAlphaForDisplay(phys, alpha) {
+  return alpha;
+}
+
+function updateRopeLengthValue(labelText = null) {
+  if (labelText) {
+    el.valRopeLength.textContent = labelText;
+    return;
+  }
+  el.valRopeLength.textContent = `${state.ropeLength.toFixed(1)} × span`;
+}
+
+function updateBreakControlValue(scenario = state.scenario) {
+  if (!el.valBreak) return;
+  if (scenario === "tow") {
+    el.valBreak.textContent = `${(state.breakStrain * 1000).toFixed(1)} ref`;
+  } else {
+    el.valBreak.textContent = `${(state.breakStrain * 100).toFixed(1)}%`;
+  }
+}
+
+function setRopeLengthControlEnabled(enabled, labelText = null) {
+  if (!el.ropeLengthRow || !el.slRopeLength) return;
+  el.ropeLengthRow.classList.toggle("disabled", !enabled);
+  el.slRopeLength.disabled = !enabled;
+  el.slRopeLength.setAttribute("aria-disabled", enabled ? "false" : "true");
+  updateRopeLengthValue(labelText);
 }
 
 // ═══════════════════════════════════════════════
@@ -502,10 +302,12 @@ function drawRopeVisual(
   slackFraction,
   strainRatio,
   isBroken,
-  isTow,
+  scenario,
   dScale,
   now,
 ) {
+  const isCable = scenario !== "bell";
+  const isBorn = scenario === "born";
   const midX = (rxA + rxB) / 2;
   const spanPx = rxB - rxA;
 
@@ -521,7 +323,7 @@ function drawRopeVisual(
     const rightEndX = rxB - retractLen;
     const rightEndY = droopY;
 
-    // Two drooping halves — each hangs near its own ship
+    // Two drooping halves, each hangs near its own ship
     ctx.lineWidth = 2.0 * dScale;
     ctx.strokeStyle = `rgba(220, 110, 55, 0.95)`;
     ctx.shadowColor = `rgba(255, 90, 40, 0.75)`;
@@ -554,7 +356,7 @@ function drawRopeVisual(
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Frayed ends — fiber wisps at each broken tip
+    // Frayed ends, fiber wisps at each broken tip
     const frayOffsetsLeft = [
       [4, -3, 0.5, 7],
       [6, 2, 0.9, 6],
@@ -594,7 +396,7 @@ function drawRopeVisual(
       ctx.stroke();
     });
 
-    // Floating embers/sparks — split between both broken ends
+    // Floating sparks split between both broken ends
     for (let i = 0; i < 5; i++) {
       const angle = (i / 5) * Math.PI * 2 + now * 0.001 * 0.6;
       const dist =
@@ -618,7 +420,7 @@ function drawRopeVisual(
       ctx.fill();
     }
 
-    // "ROPE SNAPPED" label — centered between ships
+    // "ROPE SNAPPED" label centered between ships
     ctx.fillStyle = "rgba(255, 105, 55, 0.95)";
     ctx.font = `700 ${Math.max(11, Math.round(13 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
@@ -631,7 +433,7 @@ function drawRopeVisual(
 
   // ── INTACT ROPE ──
   let r, g, b;
-  if (isTow) {
+  if (isCable) {
     r = 120;
     g = 180;
     b = 220;
@@ -639,17 +441,17 @@ function drawRopeVisual(
     [r, g, b] = ropeColorBell(strainRatio);
   }
 
-  const ropeThick = isTow
+  const ropeThick = isCable
     ? Math.max(2.5, 1.5 + state.breakStrain / 0.02) * dScale
     : 1.8 * dScale;
-  const glow = isTow ? 4 : strainRatio > 0.45 ? 3 + strainRatio * 10 : 2;
+  const glow = isCable ? 4 : strainRatio > 0.45 ? 3 + strainRatio * 10 : 2;
 
   ctx.strokeStyle = `rgb(${r},${g},${b})`;
   ctx.lineWidth = ropeThick;
   ctx.shadowColor = `rgb(${r},${g},${b})`;
   ctx.shadowBlur = glow * dScale;
 
-  if (isTow || slackFraction < 0.004) {
+  if (isCable || slackFraction < 0.004) {
     // Straight taut line
     ctx.beginPath();
     ctx.moveTo(rxA, ry);
@@ -677,12 +479,18 @@ function drawRopeVisual(
 
   ctx.shadowBlur = 0;
 
-  // Tow mode label
-  if (isTow) {
+  if (isCable) {
     ctx.fillStyle = "rgba(120,180,220,0.8)";
     ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
     ctx.textAlign = "center";
-    ctx.fillText("STRONG CABLE — MECHANICAL TENSION", midX, ry + 18 * dScale);
+    const label = isBorn
+      ? dScale < 0.75
+        ? "BORN-RIGID REFERENCE"
+        : "BORN-RIGID REFERENCE, NO MATERIAL ROPE"
+      : dScale < 0.75
+        ? "STIFF STEEL CABLE"
+        : "STIFF STEEL CABLE, SMALL ELASTIC STRAIN";
+    ctx.fillText(label, midX, ry + 18 * dScale);
   }
 }
 
@@ -699,6 +507,7 @@ function drawClock(
   label,
   color,
   dScale,
+  nullLabel = "N/A",
 ) {
   const boxTop = py - 12 * dScale;
   const boxBottom = py + 12 * dScale;
@@ -731,8 +540,11 @@ function drawClock(
   ctx.font = `700 ${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   if (timeVal === null) {
-    ctx.fillStyle = "#ff6868";
-    ctx.fillText("HORIZON", px, py + 4 * dScale);
+    ctx.fillStyle = "rgba(216, 236, 255, 0.58)";
+    if (nullLabel.length > 7) {
+      ctx.font = `700 ${Math.max(7, Math.round(9 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    }
+    ctx.fillText(nullLabel, px, py + 4 * dScale);
   } else {
     ctx.fillStyle = color;
     ctx.fillText(timeVal.toFixed(3) + "y", px, py + 4 * dScale);
@@ -744,7 +556,7 @@ function drawClock(
 }
 
 // ═══════════════════════════════════════════════
-// RENDER — DISPATCH
+// RENDER - DISPATCH
 // ═══════════════════════════════════════════════
 function render(phys) {
   if (state.view === "lab") renderLab(phys);
@@ -760,12 +572,15 @@ function renderLab(phys) {
     gamma,
     v,
     S_lab,
+    S_lab_B,
     C_A,
     C_B,
     E_A,
     E_B,
     P_A,
     P_B,
+    rocketAlphaA,
+    rocketAlphaB,
     strain,
     isBroken,
     slackFraction,
@@ -793,6 +608,7 @@ function renderLab(phys) {
   const toSX = (x) => (x - camX) * scale + CW / 2;
   const cy = Math.round(CH * 0.42);
   const now = performance.now();
+  const compactCanvas = CW < 520;
 
   for (const s of STARS) {
     const parallaxPx = (camX * scale * s.d * 0.18) % CW;
@@ -826,22 +642,37 @@ function renderLab(phys) {
 
   const sh = 38 * dScale;
 
-  function drawShip(cx_phys, ePosPhys, pPosPhys, color, label, hasEngine) {
-    const sw = Math.max(5 * dScale, S_lab * scale);
+  function drawShip(
+    cx_phys,
+    ePosPhys,
+    pPosPhys,
+    color,
+    label,
+    hasEngine,
+    shipLabLength,
+    thrustAlpha = state.a,
+  ) {
+    const sw = Math.max(5 * dScale, shipLabLength * scale);
     const sx = toSX(cx_phys) - sw / 2;
     const sy = cy - sh / 2;
     const esx = toSX(ePosPhys);
     const psx = toSX(pPosPhys);
 
     if (hasEngine) {
+      const displayAlpha = plumeAlphaForDisplay(phys, thrustAlpha);
+      const alphaNorm = Math.max(0, Math.min(1, displayAlpha / 1.5));
       const flicker =
-        Math.sin(now * 0.055 + (label === "A" ? 0 : 1.8)) * 2.5 +
-        Math.sin(now * 0.022 + (label === "A" ? 0 : 2.5)) * 1.8;
-      const flameLen = Math.max(2, 6 + v * 55 + flicker) * dScale;
+        scenario === "born"
+          ? 0
+          : Math.sin(now * 0.055 + (label === "A" ? 0 : 1.8)) * 2.5 +
+            Math.sin(now * 0.022 + (label === "A" ? 0 : 2.5)) * 1.8;
+      const flameLen =
+        Math.max(2, 7 + 26 * alphaNorm + flicker) *
+        dScale;
 
       const fg = ctx.createLinearGradient(esx, cy, esx - flameLen, cy);
-      fg.addColorStop(0, "rgba(70,210,255,0.92)");
-      fg.addColorStop(0.45, "rgba(70,210,255,0.28)");
+      fg.addColorStop(0, `rgba(70,210,255,${0.55 + 0.37 * alphaNorm})`);
+      fg.addColorStop(0.45, `rgba(70,210,255,${0.14 + 0.22 * alphaNorm})`);
       fg.addColorStop(1, "rgba(70,210,255,0)");
       ctx.fillStyle = fg;
       ctx.beginPath();
@@ -852,7 +683,7 @@ function renderLab(phys) {
       ctx.fill();
 
       const ig = ctx.createRadialGradient(esx, cy, 0, esx, cy, 11 * dScale);
-      ig.addColorStop(0, "rgba(110,230,255,0.75)");
+      ig.addColorStop(0, `rgba(110,230,255,${0.35 + 0.4 * alphaNorm})`);
       ig.addColorStop(1, "rgba(110,230,255,0)");
       ctx.fillStyle = ig;
       ctx.beginPath();
@@ -926,8 +757,10 @@ function renderLab(phys) {
     ctx.shadowBlur = 0;
   }
 
-  const hasEngineA = scenario === "bell";
-  const hasEngineB = true;
+  const engineAlphaA = phys.engineAlphaA ?? rocketAlphaA;
+  const engineAlphaB = phys.engineAlphaB ?? rocketAlphaB;
+  const hasEngineA = engineAlphaA > 0;
+  const hasEngineB = engineAlphaB > 0;
   const sh_half = sh / 2;
 
   // Draw clocks FIRST (behind ship labels).
@@ -944,9 +777,9 @@ function renderLab(phys) {
     ctx,
     sxCB - clockOffset,
     clockY_B,
-    toSX(C_B - S_lab / 2),
+    toSX(C_B - S_lab_B / 2),
     targetY,
-    phys.tau_B_back,
+    phys.clock_tau_B_back,
     "B-REAR τ",
     "#66e5ff",
     dScale,
@@ -955,9 +788,9 @@ function renderLab(phys) {
     ctx,
     sxCB + clockOffset,
     clockY_B,
-    toSX(C_B + S_lab / 2),
+    toSX(C_B + S_lab_B / 2),
     targetY,
-    phys.tau_B_front,
+    phys.clock_tau_B_front,
     "B-FRONT τ",
     "#66e5ff",
     dScale,
@@ -968,7 +801,7 @@ function renderLab(phys) {
     clockY_A,
     toSX(C_A - S_lab / 2),
     targetY,
-    phys.tau_A_back,
+    phys.clock_tau_A_back,
     "A-REAR τ",
     "#ffb866",
     dScale,
@@ -979,7 +812,7 @@ function renderLab(phys) {
     clockY_A,
     toSX(C_A + S_lab / 2),
     targetY,
-    phys.tau_A_front,
+    phys.clock_tau_A_front,
     "A-FRONT τ",
     "#ffb866",
     dScale,
@@ -993,8 +826,19 @@ function renderLab(phys) {
     "#ffb866",
     "A",
     hasEngineA,
+    S_lab,
+    engineAlphaA,
   );
-  drawShip(C_B, E_B, P_B, "#66e5ff", "B", hasEngineB);
+  drawShip(
+    C_B,
+    E_B,
+    P_B,
+    "#66e5ff",
+    "B",
+    hasEngineB,
+    S_lab_B || S_lab,
+    engineAlphaB,
+  );
 
   // Ship Labels
   ctx.fillStyle = "#ffb866";
@@ -1003,7 +847,7 @@ function renderLab(phys) {
   ctx.fillText(`SHIP A`, sxCA, cy + sh_half + 18 * dScale);
   ctx.fillStyle = "rgba(150,200,245,0.55)";
   ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.fillText(`|← L₀/γ →|`, sxCA, cy + sh_half + 32 * dScale);
+  ctx.fillText(`|← S₀/γ →|`, sxCA, cy + sh_half + 32 * dScale);
 
   ctx.fillStyle = "#66e5ff";
   ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
@@ -1011,15 +855,15 @@ function renderLab(phys) {
   ctx.fillText(`SHIP B`, sxCB, cy + sh_half + 18 * dScale);
   ctx.fillStyle = "rgba(150,200,245,0.55)";
   ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.fillText(`|← L₀/γ →|`, sxCB, cy + sh_half + 32 * dScale);
+  ctx.fillText(`|← S₀/γ →|`, sxCB, cy + sh_half + 32 * dScale);
 
   // ── ROPE / CABLE ──
   const rxA = toSX(P_A);
   const rxB = toSX(P_B);
   const ry_rope = cy - 55 * dScale;
   const midX = (rxA + rxB) / 2;
-  const strainRatio = Math.min(1.0, strain / state.breakStrain);
-  const isTow = scenario === "tow";
+  const strainRatio = strainRatioForDisplay(phys);
+  const isCable = scenario !== "bell";
 
   drawRopeVisual(
     ctx,
@@ -1029,27 +873,28 @@ function renderLab(phys) {
     slackFraction,
     strainRatio,
     isBroken,
-    isTow,
+    scenario,
     dScale,
     now,
   );
 
-  // Rope/Cable τ clock — always visible; orange + dimmed when broken
+  // Rope/Cable tau clock is always visible, orange and dimmed when broken.
   {
-    const [cR, cG, cB] = isTow
+    const [cR, cG, cB] = isCable
       ? [120, 180, 220]
       : ropeColorBell(isBroken ? 1 : strainRatio);
     const clockColor = isBroken ? "rgb(255,105,55)" : `rgb(${cR},${cG},${cB})`;
     if (isBroken) ctx.globalAlpha = 0.5;
-    const ropeClockY = Math.max(20 * dScale, ry_rope - 44 * dScale);
+    const ropeClockLift = compactCanvas ? 76 : 44;
+    const ropeClockY = Math.max(20 * dScale, ry_rope - ropeClockLift * dScale);
     drawClock(
       ctx,
       midX,
       ropeClockY,
       midX,
       ry_rope,
-      phys.tau_cable,
-      isTow ? "CABLE τ" : "ROPE τ",
+      phys.clock_tau_cable,
+      connectorClockLabel(scenario),
       clockColor,
       dScale,
     );
@@ -1070,10 +915,12 @@ function renderLab(phys) {
 
   // ── Gap bracket ──
   const bY = cy + 125 * dScale;
-  const gapColor =
-    scenario === "tow" ? "rgba(102,229,255,0.3)" : "rgba(86,197,240,0.28)";
-  const gapTextColor =
-    scenario === "tow" ? "rgba(102,229,255,0.7)" : "rgba(86,197,240,0.55)";
+  const gapColor = isCable
+    ? "rgba(102,229,255,0.3)"
+    : "rgba(86,197,240,0.28)";
+  const gapTextColor = isCable
+    ? "rgba(102,229,255,0.7)"
+    : "rgba(86,197,240,0.55)";
 
   ctx.strokeStyle = gapColor;
   ctx.lineWidth = 1.5 * dScale;
@@ -1096,49 +943,43 @@ function renderLab(phys) {
   ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   const gapLabel =
-    scenario === "tow"
-      ? `D/γ = ${phys.lab_gap.toFixed(3)} L (contracting)`
-      : `D = ${state.L_gap.toFixed(1)} L (constant in lab)`;
+    scenario === "bell"
+      ? `D = ${state.L_gap.toFixed(1)} L (constant in lab)`
+      : scenario === "tow"
+        ? `Δx = ${phys.lab_gap.toFixed(3)} L (contracted tow span)`
+        : `Δx = ${phys.lab_gap.toFixed(3)} L (lab slice)`;
   ctx.fillText(gapLabel, (sxCA + sxCB) / 2, bY + 18 * dScale);
 
-  ctx.fillStyle = "rgba(86,197,240,0.35)";
-  ctx.font = `700 ${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.textAlign = "left";
-  ctx.fillText(
-    "OBSERVER (LAB) FRAME — ships moving right",
-    10 * dScale,
-    CH - 10 * dScale,
-  );
 }
 
 function renderProper(phys) {
   const ctx = el.ctx;
   const {
-    gamma,
-    v,
     strain,
     isBroken,
     slackFraction,
-    cable_prop,
     L_init,
     stretch,
     scenario,
+    rocketAlphaA,
+    rocketAlphaB,
   } = phys;
   ctx.clearRect(0, 0, CW, CH);
   observerHitTargets = [];
 
   const dScale = (CW / 800) * 1.35;
+  const frameV = selectedObserverVelocity(phys);
 
   // Doppler Shift Background
   const dopplerGradient = ctx.createLinearGradient(0, 0, CW, 0);
   dopplerGradient.addColorStop(
     0,
-    `rgba(${12 + 150 * v}, ${32 - 20 * v}, ${72 - 40 * v}, ${0.45 + 0.2 * v})`,
+    `rgba(${12 + 150 * frameV}, ${32 - 20 * frameV}, ${72 - 40 * frameV}, ${0.45 + 0.2 * frameV})`,
   );
   dopplerGradient.addColorStop(0.5, `rgba(12, 32, 72, 0.45)`);
   dopplerGradient.addColorStop(
     1,
-    `rgba(${12 - 10 * v}, ${32 + 50 * v}, ${72 + 150 * v}, ${0.45 + 0.2 * v})`,
+    `rgba(${12 - 10 * frameV}, ${32 + 50 * frameV}, ${72 + 150 * frameV}, ${0.45 + 0.2 * frameV})`,
   );
   ctx.fillStyle = dopplerGradient;
   ctx.fillRect(0, 0, CW, CH);
@@ -1152,7 +993,7 @@ function renderProper(phys) {
     ctx.fill();
   }
 
-  const properGap = phys.prop_gap;
+  const properGap = displayedProperGap(phys);
   const BASE_PROPER = 8.0;
   const neededProper = properGap + S0 * 3.2;
   const totalW = Math.max(BASE_PROPER, neededProper);
@@ -1161,8 +1002,9 @@ function renderProper(phys) {
   const toSX = (x) => (x - camX_p) * scaleP + CW / 2;
   const cy = Math.round(CH * 0.42);
   const sh = 38 * dScale;
+  const compactCanvas = CW < 520;
 
-  // ── FIXED ship visual width (ships are at rest in this frame — they must never shrink) ──
+  // Fixed ship visual width: ships are at rest in this frame, so they must not shrink.
   const sw = Math.max(S0 * (CW / BASE_PROPER), 46 * dScale);
 
   ctx.strokeStyle = "rgba(86,197,240,0.055)";
@@ -1186,7 +1028,7 @@ function renderProper(phys) {
   const halfNat = (L_init * scaleP) / 2;
   const midPx = (psx_A + psx_B) / 2;
 
-  // ── L₀ natural length indicator (only when rope is intact — hides when "ROPE SNAPPED" text is drawn) ──
+  // L0 natural length indicator, hidden when "ROPE SNAPPED" text is drawn.
   if (!isBroken) {
     ctx.strokeStyle = "rgba(160,176,192,0.22)";
     ctx.lineWidth = 1.8 * dScale;
@@ -1206,28 +1048,35 @@ function renderProper(phys) {
     ctx.moveTo(midPx + halfNat, ry - 16 * dScale);
     ctx.lineTo(midPx + halfNat, ry - 6 * dScale);
     ctx.stroke();
-    ctx.fillStyle = "rgba(160,176,192,0.65)";
-    ctx.font = `${Math.max(9, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-    ctx.textAlign = "center";
-    ctx.fillText(
-      `L₀ = ${L_init.toFixed(3)} L (natural)`,
-      midPx,
-      ry - 18 * dScale,
-    );
+    if (!compactCanvas) {
+      ctx.fillStyle = "rgba(160,176,192,0.65)";
+      ctx.font = `${Math.max(9, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText(
+        `L₀ = ${L_init.toFixed(3)} L (natural)`,
+        midPx,
+        ry - 18 * dScale,
+      );
+    }
   }
 
-  function drawProperShip(cx, color, label, hasEngine) {
+  function drawProperShip(cx, color, label, hasEngine, thrustAlpha = state.a) {
     const sxL = toSX(cx) - sw / 2;
     const sy = cy - sh / 2;
     const esx = sxL;
 
     if (hasEngine) {
-      const flicker = Math.sin(now * 0.055 + (label === "A" ? 0 : 1.8)) * 2.5;
-      const flameLen = (15 + flicker) * dScale;
+      const displayAlpha = plumeAlphaForDisplay(phys, thrustAlpha);
+      const alphaNorm = Math.max(0, Math.min(1, displayAlpha / 1.5));
+      const flicker =
+        scenario === "born"
+          ? 0
+          : Math.sin(now * 0.055 + (label === "A" ? 0 : 1.8)) * 2.5;
+      const flameLen = Math.max(3, 7 + 26 * alphaNorm + flicker) * dScale;
 
       const fg = ctx.createLinearGradient(esx, cy, esx - flameLen, cy);
-      fg.addColorStop(0, "rgba(70,210,255,0.92)");
-      fg.addColorStop(0.45, "rgba(70,210,255,0.28)");
+      fg.addColorStop(0, `rgba(70,210,255,${0.55 + 0.37 * alphaNorm})`);
+      fg.addColorStop(0.45, `rgba(70,210,255,${0.14 + 0.22 * alphaNorm})`);
       fg.addColorStop(1, "rgba(70,210,255,0)");
       ctx.fillStyle = fg;
       ctx.beginPath();
@@ -1238,7 +1087,7 @@ function renderProper(phys) {
       ctx.fill();
 
       const ig = ctx.createRadialGradient(esx, cy, 0, esx, cy, 11 * dScale);
-      ig.addColorStop(0, "rgba(110,230,255,0.75)");
+      ig.addColorStop(0, `rgba(110,230,255,${0.35 + 0.4 * alphaNorm})`);
       ig.addColorStop(1, "rgba(110,230,255,0)");
       ctx.fillStyle = ig;
       ctx.beginPath();
@@ -1359,10 +1208,11 @@ function renderProper(phys) {
     clockY_B,
     sxB_center - sw / 2,
     targetY,
-    phys.pf_tau_B_back,
+    frameClockTau(phys, "B_back"),
     "B-REAR τ",
     "#66e5ff",
     dScale,
+    "PRE-START",
   );
   drawClock(
     ctx,
@@ -1370,10 +1220,11 @@ function renderProper(phys) {
     clockY_B,
     sxB_center + sw / 2,
     targetY,
-    phys.pf_tau_B_front,
+    frameClockTau(phys, "B_front"),
     "B-FRONT τ",
     "#66e5ff",
     dScale,
+    "PRE-START",
   );
   drawClock(
     ctx,
@@ -1381,10 +1232,11 @@ function renderProper(phys) {
     clockY_A,
     sxA_center - sw / 2,
     targetY,
-    phys.pf_tau_A_back,
+    frameClockTau(phys, "A_back"),
     "A-REAR τ",
     "#ffb866",
     dScale,
+    "PRE-START",
   );
   drawClock(
     ctx,
@@ -1392,14 +1244,17 @@ function renderProper(phys) {
     clockY_A,
     sxA_center + sw / 2,
     targetY,
-    phys.pf_tau_A_front,
+    frameClockTau(phys, "A_front"),
     "A-FRONT τ",
     "#ffb866",
     dScale,
+    "PRE-START",
   );
 
-  drawProperShip(A_cx, "#ffb866", "A", scenario === "bell");
-  drawProperShip(B_cx, "#66e5ff", "B", true);
+  const engineAlphaA = phys.engineAlphaA ?? rocketAlphaA;
+  const engineAlphaB = phys.engineAlphaB ?? rocketAlphaB;
+  drawProperShip(A_cx, "#ffb866", "A", engineAlphaA > 0, engineAlphaA);
+  drawProperShip(B_cx, "#66e5ff", "B", engineAlphaB > 0, engineAlphaB);
   drawProperPylon(psx_A);
   drawProperPylon(psx_B);
 
@@ -1408,72 +1263,21 @@ function renderProper(phys) {
   ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP A`, sxA_center, cy + sh / 2 + 18 * dScale);
-  {
-    const isObsA = state.selectedObserver === "A";
-    ctx.fillStyle = isObsA
-      ? "rgba(255,184,102,0.65)"
-      : "rgba(150,195,240,0.45)";
-    ctx.font = `${Math.max(8, Math.round(isObsA ? 9 : 10) * dScale)}px 'JetBrains Mono', 'Space Mono', monospace`;
-    ctx.fillText(
-      isObsA ? `◉ OBSERVER` : `S₀ = ${S0.toFixed(1)} L (proper)`,
-      sxA_center,
-      cy + sh / 2 + 32 * dScale,
-    );
-  }
+  ctx.fillStyle = "rgba(150,195,240,0.45)";
+  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+  ctx.fillText(`S₀ = ${S0.toFixed(1)} L (proper)`, sxA_center, cy + sh / 2 + 32 * dScale);
 
   ctx.fillStyle = "#66e5ff";
   ctx.font = `600 ${Math.max(10, Math.round(12 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   ctx.fillText(`SHIP B`, sxB_center, cy + sh / 2 + 18 * dScale);
-  {
-    const isObsB =
-      state.selectedObserver === "B" || state.selectedObserver === null;
-    ctx.fillStyle = isObsB
-      ? "rgba(102,229,255,0.65)"
-      : "rgba(150,195,240,0.45)";
-    ctx.font = `${Math.max(8, Math.round(isObsB ? 9 : 10) * dScale)}px 'JetBrains Mono', 'Space Mono', monospace`;
-    ctx.fillText(
-      isObsB ? `◉ OBSERVER` : `S₀ = ${S0.toFixed(1)} L (proper)`,
-      sxB_center,
-      cy + sh / 2 + 32 * dScale,
-    );
-  }
+  ctx.fillStyle = "rgba(150,195,240,0.45)";
+  ctx.font = `${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+  ctx.fillText(`S₀ = ${S0.toFixed(1)} L (proper)`, sxB_center, cy + sh / 2 + 32 * dScale);
 
   // ── ROPE / CABLE (Proper Frame) ──
-  const strainRatio = Math.min(1.0, strain / state.breakStrain);
-  const isTow = scenario === "tow";
-
-  // ── Observer star marker — follows selectedObserver ──
-  {
-    const obs = state.selectedObserver;
-    let starX, starY, starColor;
-    if (obs === "A") {
-      starX = sxA_center;
-      starY = ry - 14 * dScale;
-      starColor = "rgba(255,184,102,0.9)";
-    } else if (obs === "rope") {
-      // Place to the left of the rope midpoint to avoid overlapping the ROPE τ clock
-      starX = midPx - 55 * dScale;
-      starY = ry;
-      const [roR, roG, roB] = isTow
-        ? [120, 180, 220]
-        : ropeColorBell(strainRatio);
-      starColor = `rgb(${roR},${roG},${roB})`;
-    } else {
-      // Default (B or null) — Ship B is the natural comoving-frame origin
-      starX = sxB_center;
-      starY = ry - 14 * dScale;
-      starColor = "rgba(102,229,255,0.9)";
-    }
-    ctx.fillStyle = starColor;
-    ctx.font = `bold ${Math.max(10, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-    ctx.textAlign = "center";
-    ctx.fillText("★", starX, starY);
-    ctx.globalAlpha = 0.6;
-    ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-    ctx.fillText("OBSERVER", starX, starY + 11 * dScale);
-    ctx.globalAlpha = 1.0;
-  }
+  const strainRatio = strainRatioForDisplay(phys);
+  const isCable = scenario !== "bell";
 
   drawRopeVisual(
     ctx,
@@ -1483,18 +1287,50 @@ function renderProper(phys) {
     slackFraction,
     strainRatio,
     isBroken,
-    isTow,
+    scenario,
     dScale,
     now,
   );
 
-  // ── Rope/Cable observer button (at midpoint — always visible, even after break) ──
+  // Observer star marker follows selectedObserver and is drawn above the cable.
+  {
+    const obs = selectedProperObserver();
+    let starX, starY, starColor;
+    if (obs === "A") {
+      starX = sxA_center;
+      starY = ry - 14 * dScale;
+      starColor = "rgba(255,184,102,0.9)";
+    } else if (obs === "rope") {
+      starX = midPx - 55 * dScale;
+      starY = ry;
+      const [roR, roG, roB] = isCable
+        ? [120, 180, 220]
+        : ropeColorBell(strainRatio);
+      starColor = `rgb(${roR},${roG},${roB})`;
+    } else {
+      starX = sxB_center;
+      starY = ry - 14 * dScale;
+      starColor = "rgba(102,229,255,0.9)";
+    }
+    ctx.fillStyle = starColor;
+    ctx.font = `bold ${Math.max(10, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText("★", starX, starY);
+    if (!compactCanvas) {
+      ctx.globalAlpha = 0.72;
+      ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
+      ctx.fillText("OBSERVER", starX, starY + 11 * dScale);
+      ctx.globalAlpha = 1.0;
+    }
+  }
+
+  // Rope/Cable observer button at midpoint, visible even after break.
   {
     const ropeObsSelected = state.selectedObserver === "rope";
     const ropeBtnR = 6 * dScale;
     const [roR, roG, roB] = isBroken
       ? [180, 140, 100] // muted brown when broken
-      : isTow
+      : isCable
         ? [120, 180, 220]
         : ropeColorBell(strainRatio);
     const ropeBtnColor = `rgb(${roR},${roG},${roB})`;
@@ -1529,10 +1365,11 @@ function renderProper(phys) {
     });
   }
 
-  // Rope/Cable τ clock — always visible; pass actual tau, never null.
-  // When broken: orange tint + dimmed to show last valid time at snap.
+  // Rope/Cable tau clock is always visible. In Proper Frame, it uses the
+  // selected simultaneity slice sample and can be outside the modeled mission.
+  // When broken: orange tint + dimmed to show the last valid rope state.
   {
-    const [cR, cG, cB] = isTow
+    const [cR, cG, cB] = isCable
       ? [120, 180, 220]
       : ropeColorBell(isBroken ? 1 : strainRatio);
     const ropeClock_color = isBroken
@@ -1542,13 +1379,14 @@ function renderProper(phys) {
     drawClock(
       ctx,
       midPx,
-      ry - 44 * dScale,
+      ry - (compactCanvas ? 76 : 44) * dScale,
       midPx,
       ry,
-      phys.pf_tau_cable,
-      isTow ? "CABLE τ" : "ROPE τ",
+      frameClockTau(phys, "cable"),
+      connectorClockLabel(scenario),
       ropeClock_color,
       dScale,
+      "PRE-START",
     );
     ctx.globalAlpha = 1.0;
   }
@@ -1594,10 +1432,12 @@ function renderProper(phys) {
 
   // Gap bracket
   const bY = cy + 125 * dScale;
-  const gapColor =
-    scenario === "tow" ? "rgba(102,229,255,0.35)" : "rgba(86,197,240,0.35)";
-  const gapTextColor =
-    scenario === "tow" ? "rgba(102,229,255,0.75)" : "rgba(86,197,240,0.65)";
+  const gapColor = isCable
+    ? "rgba(102,229,255,0.35)"
+    : "rgba(86,197,240,0.35)";
+  const gapTextColor = isCable
+    ? "rgba(102,229,255,0.75)"
+    : "rgba(86,197,240,0.65)";
   ctx.strokeStyle = gapColor;
   ctx.lineWidth = 1.5 * dScale;
   ctx.setLineDash([4 * dScale, 5 * dScale]);
@@ -1619,20 +1459,13 @@ function renderProper(phys) {
   ctx.font = `${Math.max(9, Math.round(11 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
   ctx.textAlign = "center";
   const propGapLabel =
-    scenario === "tow"
-      ? `D = ${phys.prop_gap.toFixed(3)} L (constant — Born rigid)`
-      : `γ·D = ${phys.prop_gap.toFixed(3)} L (expanding!)`;
+    scenario === "born"
+      ? `D = ${phys.prop_gap.toFixed(3)} L (constant, Born rigid)`
+      : scenario === "tow"
+        ? `material span = ${phys.prop_gap.toFixed(3)} L`
+        : `slice span = ${properGap.toFixed(3)} L`;
   ctx.fillText(propGapLabel, (toSX(A_cx) + toSX(B_cx)) / 2, bY + 18 * dScale);
 
-  // Frame annotation at bottom
-  ctx.fillStyle = "rgba(86,197,240,0.35)";
-  ctx.font = `700 ${Math.max(8, Math.round(10 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.textAlign = "left";
-  ctx.fillText(
-    "SHIP B's COMOVING FRAME — both ships at rest here",
-    10 * dScale,
-    CH - 10 * dScale,
-  );
 }
 
 // ═══════════════════════════════════════════════
@@ -1641,6 +1474,7 @@ function renderProper(phys) {
 function updateAll() {
   const phys = compute();
   updateBadge(phys);
+  updateObserverBadge(phys);
   updateEquations(phys);
   updateStrainBar(phys);
   updateScenarioUI(phys);
@@ -1649,45 +1483,57 @@ function updateAll() {
 }
 
 function updateBadge(phys) {
-  const { gamma, v, tau } = phys;
-  el.badgeGamma.textContent = gamma.toFixed(4);
-  el.badgeV.textContent = v.toFixed(4);
+  const { tau } = phys;
+  const displayV = state.view === "proper" ? selectedObserverVelocity(phys) : phys.v;
+  const displayGamma = 1 / Math.sqrt(1 - displayV * displayV);
+  el.badgeGamma.textContent = displayGamma.toFixed(4);
+  el.badgeV.textContent = displayV.toFixed(4);
 
   // Show selected observer's proper time (at ship centre), or default tau
-  let displayTau = tau;
+  let displayTau = state.view === "proper"
+    ? phys.clock_tau_B_center
+    : tau;
   let obsLabel = "";
-  if (state.selectedObserver === "A") {
-    displayTau = phys.tau_A_center != null ? phys.tau_A_center : null;
+  const selected = state.view === "proper" ? selectedProperObserver() : state.selectedObserver;
+  if (selected === "A") {
+    displayTau = phys.clock_tau_A_center != null ? phys.clock_tau_A_center : null;
     obsLabel = " [A]";
-  } else if (state.selectedObserver === "B") {
-    displayTau = phys.tau_B_center != null ? phys.tau_B_center : null;
+  } else if (selected === "B") {
+    displayTau = phys.clock_tau_B_center != null ? phys.clock_tau_B_center : null;
     obsLabel = " [B]";
-  } else if (state.selectedObserver === "rope") {
-    displayTau = phys.tau_cable != null ? phys.tau_cable : null;
-    obsLabel = phys.scenario === "tow" ? " [cable]" : " [rope]";
+  } else if (selected === "rope") {
+    displayTau = phys.clock_tau_cable != null ? phys.clock_tau_cable : null;
+    obsLabel =
+      phys.scenario === "bell"
+        ? " [rope]"
+        : phys.scenario === "tow"
+          ? " [cable]"
+          : " [ref]";
   }
   el.badgeTau.textContent =
-    (displayTau != null ? displayTau.toFixed(3) : "—") + obsLabel;
+    (displayTau != null ? displayTau.toFixed(3) : "n/a") + obsLabel;
+}
+
+function updateObserverBadge(phys) {
+  if (!el.observerBadge) return;
+  const scenarioLabel =
+    phys.scenario === "bell"
+      ? "Bell"
+      : phys.scenario === "tow"
+        ? "Strong Tow"
+        : "Born Reference";
+  el.observerBadge.textContent =
+    state.view === "lab"
+      ? `Observer: lab frame · ${scenarioLabel}`
+      : `Proper slice: ${selectedObserverName(phys)} · ${scenarioLabel}`;
 }
 
 function updateScenarioUI({ scenario }) {
-  if (scenario === "tow") {
-    el.scenarioBadge.className = "scenario-badge sb-tow";
-    el.scenarioBadge.textContent = "Tow Mode";
-    el.ropeLengthRow.classList.remove("visible");
-    el.monitorTitle.textContent = "Cable Strain Monitor";
-    el.ctrlBreakName.childNodes[0].textContent = "Cable Tolerance ";
-    if (el.ctrlBreakTip)
-      el.ctrlBreakTip.textContent =
-        "Maximum fractional elongation the cable can endure. In Tow mode the cable never breaks relativistically — it only carries mechanical tension.";
-    if (el.attachLabelA)
-      el.attachLabelA.childNodes[0].textContent = "Cable Attachment Point";
-    if (el.attachLabelB)
-      el.attachLabelB.childNodes[0].textContent = "Cable Attachment Point";
-  } else {
+  if (scenario === "bell") {
     el.scenarioBadge.className = "scenario-badge sb-bell";
     el.scenarioBadge.textContent = "Bell's Paradox";
-    el.ropeLengthRow.classList.add("visible");
+    updateBreakControlValue(scenario);
+    setRopeLengthControlEnabled(true);
     el.monitorTitle.textContent = "Rope Strain Monitor";
     el.ctrlBreakName.childNodes[0].textContent = "Rope Break Strain ";
     if (el.ctrlBreakTip)
@@ -1697,6 +1543,34 @@ function updateScenarioUI({ scenario }) {
       el.attachLabelA.childNodes[0].textContent = "Rope Attachment Point";
     if (el.attachLabelB)
       el.attachLabelB.childNodes[0].textContent = "Rope Attachment Point";
+  } else if (scenario === "tow") {
+    el.scenarioBadge.className = "scenario-badge sb-tow";
+    el.scenarioBadge.textContent = "Strong Tow";
+    updateBreakControlValue(scenario);
+    setRopeLengthControlEnabled(false, "fixed span");
+    el.monitorTitle.textContent = "Tow Load Monitor";
+    el.ctrlBreakName.childNodes[0].textContent = "Tow Load Reference ";
+    if (el.ctrlBreakTip)
+      el.ctrlBreakTip.textContent =
+        "Normalized load reference used to scale the tow load index. The loaded steel cable remains intact, contracts in the lab frame, and develops only a small elastic strain in this approximation.";
+    if (el.attachLabelA)
+      el.attachLabelA.childNodes[0].textContent = "Cable Attachment Point";
+    if (el.attachLabelB)
+      el.attachLabelB.childNodes[0].textContent = "Cable Attachment Point";
+  } else {
+    el.scenarioBadge.className = "scenario-badge sb-born";
+    el.scenarioBadge.textContent = "Born-Rigid Reference";
+    updateBreakControlValue(scenario);
+    setRopeLengthControlEnabled(false, "reference");
+    el.monitorTitle.textContent = "Reference Monitor";
+    el.ctrlBreakName.childNodes[0].textContent = "Reference Tolerance ";
+    if (el.ctrlBreakTip)
+      el.ctrlBreakTip.textContent =
+        "The Born-rigid reference is an exact kinematic benchmark, not a material rope model. It has no Bell-type kinematic strain.";
+    if (el.attachLabelA)
+      el.attachLabelA.childNodes[0].textContent = "Reference Attachment Point";
+    if (el.attachLabelB)
+      el.attachLabelB.childNodes[0].textContent = "Reference Attachment Point";
   }
 }
 
@@ -1738,9 +1612,16 @@ function updateFrameDimming() {
 function updateEquations(phys) {
   const {
     gamma,
+    gammaLead,
+    gammaA,
+    gammaB,
     v,
+    vLead,
+    vA,
+    vB,
     tau,
     S_lab,
+    S_lab_B,
     lab_gap,
     prop_gap,
     cable_lab,
@@ -1750,35 +1631,106 @@ function updateEquations(phys) {
     strain,
     isBroken,
     scenario,
+    spanDegenerate,
+    strainDefined,
   } = phys;
-  const { a, t, L_gap } = state;
+  const { L_gap } = state;
+  const hasTwoShipValues = scenario !== "bell";
+  const hasDefinedStrain = strainDefined && !spanDegenerate;
+  const displayPropGap = displayedProperGap(phys);
 
-  el.eqV.textContent = `${v.toFixed(4)} c`;
-  el.eqGamma.textContent = `${gamma.toFixed(4)}`;
-  el.eqTau.textContent = `${tau.toFixed(4)} yr`;
-  el.eqSlab.textContent = `${S_lab.toFixed(4)} L`;
+  el.eqV.textContent = hasTwoShipValues
+    ? `A ${vA.toFixed(4)}, B ${vB.toFixed(4)} c`
+    : `${v.toFixed(4)} c`;
+  el.eqGamma.textContent = hasTwoShipValues
+    ? `A ${gammaA.toFixed(4)}, B ${gammaB.toFixed(4)}`
+    : `${gamma.toFixed(4)}`;
+  const tauAForEq = state.view === "proper"
+    ? phys.slice_tau_A_center
+    : phys.clock_tau_A_center;
+  const tauBForEq = state.view === "proper"
+    ? phys.slice_tau_B_center
+    : phys.clock_tau_B_center;
+  el.eqTau.textContent =
+    state.view === "proper" || hasTwoShipValues
+      ? `A ${formatFixed(tauAForEq)}, B ${formatFixed(tauBForEq)} yr`
+      : `${tau.toFixed(4)} yr`;
+  el.eqSlab.textContent = hasTwoShipValues
+    ? `A ${S_lab.toFixed(4)}, B ${S_lab_B.toFixed(4)} L`
+    : `${S_lab.toFixed(4)} L`;
 
-  if (scenario === "tow") {
-    el.eqLabgapTag.className = "eq-scenario-tag tag-tow";
-    el.eqLabgapTag.textContent = "Tow";
-    el.eqLabgapFormula.textContent = "D/γ (shrinks!)";
+  if (scenario === "born") {
+    el.eqVFormula.textContent = "A/B from shared Rindler horizon";
+    el.eqGammaFormula.textContent = "A/B center values";
+    el.eqTauFormula.textContent =
+      state.view === "proper"
+        ? `${selectedObserverName(phys)} slice samples`
+        : "A center at lab time t";
+    el.eqSlabFormula.textContent = "exact A/B lab-slice span";
+    el.eqLabgapTag.className = "eq-scenario-tag tag-born";
+    el.eqLabgapTag.textContent = "Born ref.";
+    el.eqLabgapFormula.textContent = "xB(t)-xA(t), exact";
     el.eqLabgap.textContent = `${lab_gap.toFixed(4)} L`;
 
-    el.eqPropgapTag.className = "eq-scenario-tag tag-tow";
-    el.eqPropgapTag.textContent = "Tow";
+    el.eqPropgapTag.className = "eq-scenario-tag tag-born";
+    el.eqPropgapTag.textContent = "Born ref.";
     el.eqPropgapFormula.textContent = "D (constant!)";
     el.eqPropgap.textContent = `${prop_gap.toFixed(4)} L`;
     el.eqPropgap.className = "eq-result tow-color";
 
-    el.eqRlabFormula.textContent = "D/γ+(ΔAttach)·S₀/γ";
-    el.eqStretchFormula.textContent = "0 — Born rigid!";
+    el.eqRlabFormula.textContent = "x(ξB)-x(ξA), exact";
+    el.eqRpropFormula.textContent = "Born: natural span";
+    el.eqStretchLabelText.textContent = "Reference Stretch";
+    el.eqStretchFormula.textContent = "0, Born rigid";
     el.eqLinitFormula.textContent = "D+(ΔAttach)·S₀";
+    el.eqStrainLabelText.textContent = "Reference Strain";
+    el.eqStrainFormula.textContent = "exact Born-rigid reference";
 
     el.eqMechDivider.style.display = "";
     el.eqMechLabel.style.display = "";
+    el.eqMechLabel.childNodes[0].textContent = "Proper Accel. Split ";
     el.eqMech.style.display = "";
-    el.eqMech.textContent = `m·α (const)`;
+    el.eqMech.textContent = `αA = ${phys.properAlphaA.toFixed(4)}, αB = ${phys.properAlphaB.toFixed(4)} c/yr`;
+  } else if (scenario === "tow") {
+    el.eqVFormula.textContent = "B engine; A cable-constrained";
+    el.eqGammaFormula.textContent = "A/B center values";
+    el.eqTauFormula.textContent =
+      state.view === "proper"
+        ? `${selectedObserverName(phys)} slice samples`
+        : "material-point mission clocks";
+    el.eqSlabFormula.textContent = "A/B lab-slice span";
+    el.eqLabgapTag.className = "eq-scenario-tag tag-tow";
+    el.eqLabgapTag.textContent = "Tow";
+    el.eqLabgapFormula.textContent = "contracted loaded-cable span";
+    el.eqLabgap.textContent = `${lab_gap.toFixed(4)} L`;
+
+    el.eqPropgapTag.className = "eq-scenario-tag tag-tow";
+    el.eqPropgapTag.textContent = "Tow";
+    el.eqPropgapFormula.textContent = "near-fixed material center span";
+    el.eqPropgap.textContent = `${prop_gap.toFixed(4)} L`;
+    el.eqPropgap.className = "eq-result tow-color";
+
+    el.eqRlabFormula.textContent = "contracted attachment span";
+    el.eqRpropFormula.textContent = "loaded material span";
+    el.eqStretchLabelText.textContent = "Elastic Stretch";
+    el.eqStretchFormula.textContent = "steel strain × L₀";
+    el.eqLinitFormula.textContent = "D+(ΔAttach)·S₀";
+    el.eqStrainLabelText.textContent = "Steel Strain";
+    el.eqStrainFormula.textContent = "min(0.2%, 0.15% × load)";
+
+    el.eqMechDivider.style.display = "";
+    el.eqMechLabel.style.display = "";
+    el.eqMechLabel.childNodes[0].textContent = "Tow Accel. Split ";
+    el.eqMech.style.display = "";
+    el.eqMech.textContent = `αA = ${phys.properAlphaA.toFixed(4)}, αB = ${phys.properAlphaB.toFixed(4)} c/yr`;
   } else {
+    el.eqVFormula.textContent = "Bell: αt / √(1+(αt)²)";
+    el.eqGammaFormula.textContent = "Bell: √(1+(αt)²)";
+    el.eqTauFormula.textContent =
+      state.view === "proper"
+        ? `${selectedObserverName(phys)} slice samples`
+        : "Bell center: arcsinh(αt)/α";
+    el.eqSlabFormula.textContent = "Bell center: S₀/γ";
     el.eqLabgapTag.className = "eq-scenario-tag tag-bell";
     el.eqLabgapTag.textContent = "Bell's";
     el.eqLabgapFormula.textContent = "D (constant!)";
@@ -1786,100 +1738,192 @@ function updateEquations(phys) {
 
     el.eqPropgapTag.className = "eq-scenario-tag tag-bell";
     el.eqPropgapTag.textContent = "Bell's";
-    el.eqPropgapFormula.textContent = "γ·D (grows!)";
-    el.eqPropgap.textContent = `${prop_gap.toFixed(4)} L`;
+    el.eqPropgapFormula.textContent =
+      state.view === "proper"
+        ? "exact selected-slice span"
+        : "γ·D stress estimate";
+    el.eqPropgap.textContent = `${displayPropGap.toFixed(4)} L`;
     el.eqPropgap.className = "eq-result cable-color";
 
     el.eqRlabFormula.textContent = "D+(ΔAttach)·S₀/γ";
-    el.eqStretchFormula.textContent = "max(0, cable_prop − L₀)";
+    el.eqRpropFormula.textContent = "Bell: Coord. Span × γ";
+    el.eqStretchLabelText.textContent = "Stretch Demand";
+    el.eqStretchFormula.textContent = "max(0, required − L₀)";
     el.eqLinitFormula.textContent = `${state.ropeLength.toFixed(1)}×(D+(ΔAttach)·S₀)`;
+    el.eqStrainLabelText.textContent = "Material Strain";
+    el.eqStrainFormula.textContent = "Stretch / L₀";
 
     el.eqMechDivider.style.display = "none";
     el.eqMechLabel.style.display = "none";
     el.eqMech.style.display = "none";
   }
 
-  el.eqLinit.textContent = `${L_init.toFixed(4)} L`;
+  el.eqLinit.textContent = spanDegenerate
+    ? "0.0000 L (contact)"
+    : `${L_init.toFixed(4)} L`;
   el.eqRlab.textContent = `${cable_lab.toFixed(4)} L`;
   el.eqRprop.textContent = `${cable_prop.toFixed(4)} L`;
   el.eqStretch.textContent = `${stretch.toFixed(4)} L`;
 
-  if (isBroken) {
+  if (!hasDefinedStrain) {
+    el.eqStrain.textContent = "n/a";
+    el.eqStrain.style.color = "var(--text-dim)";
+  } else if (scenario === "tow") {
+    el.eqStrain.textContent = formatStrainPercent(phys);
+    el.eqStrain.style.color =
+      (phys.loadIndex ?? 0) > 0.75 ? "var(--cable-warn)" : "var(--text-bright)";
+  } else if (scenario === "born") {
+    el.eqStrain.textContent = "0.000%";
+    el.eqStrain.style.color = "var(--cable-ok)";
+  } else if (isBroken) {
     el.eqStrain.textContent = "SNAPPED";
     el.eqStrain.style.color = "var(--cable-danger)";
   } else {
-    el.eqStrain.textContent = `${(strain * 100).toFixed(3)}%`;
+    el.eqStrain.textContent = formatStrainPercent(phys);
     el.eqStrain.style.color =
       strain > state.breakStrain * 0.75
         ? "var(--cable-warn)"
         : "var(--text-bright)";
   }
 
-  if (scenario === "tow") {
-    el.insightTitle.textContent =
-      "🔗 Key Insight — Tow Mode (Born Rigid Motion)";
-    el.insightEq.textContent = `Lab gap = D/γ = ${L_gap.toFixed(2)}/${gamma.toFixed(4)} = ${lab_gap.toFixed(4)} L`;
+  if (scenario === "born") {
+    el.insightTitle.textContent = "Key Insight: Born-Rigid Reference";
+    el.insightEq.textContent = `αA = ${phys.properAlphaA.toFixed(4)} c/yr, αB = ${phys.properAlphaB.toFixed(4)} c/yr, D = ${prop_gap.toFixed(4)} L`;
     el.insightSub.innerHTML =
-      "When only Ship B fires and drags Ship A, the system undergoes <em>Born rigid acceleration</em>. The proper distance between ships stays constant at D. The lab gap Lorentz-contracts. The cable carries mechanical tension but never stretches — it will not snap from relativistic effects.";
+      "This is an exact Rindler kinematic reference, not a material rope model. The trailing worldline has higher proper acceleration, the leading worldline has lower proper acceleration, and the proper separation stays fixed. Engine plumes are visual thrust markers, not the definition of proper acceleration.";
+  } else if (scenario === "tow") {
+    el.insightTitle.textContent = "Key Insight: Strong Tow";
+    el.insightEq.textContent = `B engine α = ${phys.engineAlphaB.toFixed(4)} c/yr; A constraint α = ${phys.properAlphaA.toFixed(4)} c/yr; steel strain = ${formatStrainPercent(phys)}`;
+    el.insightSub.innerHTML =
+      "Only Ship B uses rocket thrust. Ship A's acceleration is supplied by cable tension in this loaded steel-cable approximation. The material span stays nearly fixed, its lab-frame span contracts as speed rises, and the displayed steel strain is a small bounded load annotation.";
   } else {
-    el.insightTitle.textContent = "⚡ Key Insight — Bell's Paradox";
-    el.insightEq.textContent = `Stretch = max(0, cable_prop − L₀) = ${stretch.toFixed(4)} L`;
+    el.insightTitle.textContent = "Key Insight: Bell's Paradox";
+    el.insightEq.textContent = `Stretch = max(0, required − L₀) = ${stretch.toFixed(4)} L`;
     el.insightSub.innerHTML =
-      "The absolute stretch equals D·(γ−1) regardless of where the rope is attached. Moving attachment points apart only lengthens L₀ — reducing the <em>percentage</em> of strain without reducing the absolute elongation. A fragile rope snaps almost immediately once taut.";
+      "Bell mode holds the lab-frame coordinate gap fixed while an unstressed comoving rope would occupy a shorter lab span. The displayed strain is a kinematic demand on the rope after slack is used, not a full material model.";
   }
 }
 
-function updateStrainBar({
-  strain,
-  isBroken,
-  stretch,
-  scenario,
-  slackFraction,
-}) {
-  if (scenario === "tow") {
+function updateStrainBar(phys) {
+  const {
+    strain,
+    isBroken,
+    stretch,
+    scenario,
+    slackFraction,
+    leadAlpha,
+    signalDelay,
+    towSignalActive,
+    prop_gap,
+    spanDegenerate,
+    strainDefined,
+  } = phys;
+  const ratio = strainRatioForDisplay(phys);
+
+  if (scenario === "born") {
     el.strainFill.style.width = "0%";
     el.strainFill.style.backgroundColor = "rgb(80,232,178)";
+    el.svStrainLabel.textContent = "Reference Strain";
     el.svStrain.textContent = "0.000%";
     el.svStrain.style.color = "var(--cable-ok)";
-    el.svBreak.textContent = `${(state.breakStrain * 100).toFixed(1)}%`;
+    el.svBreakLabel.textContent = "Reference";
+    el.svBreak.textContent = "exact";
+    el.svStretchLabel.textContent = "Ref. Stretch";
     el.svStretch.textContent = "0.000 L";
-    el.statusBadge.className = "status-badge s-tow";
-    el.statusBadge.textContent = "TOW — INTACT";
+    el.strainBarNote.textContent =
+      "Born-Rigid Reference is an exact Rindler benchmark, not a failure model.";
+    el.statusBadge.className = "status-badge s-born";
+    el.statusBadge.textContent = "REFERENCE";
     el.towExtra.style.display = "";
-    el.svMechLoad.textContent = `m·α (constant)`;
+    el.svMechLoad.textContent = `αA ${phys.properAlphaA.toFixed(4)}, αB ${leadAlpha.toFixed(4)} c/yr`;
     el.svTowGap.textContent = state.L_gap.toFixed(1);
-  } else {
-    el.towExtra.style.display = "none";
-    const fillPct = Math.min(100, (strain / state.breakStrain) * 100);
+    return;
+  }
+
+  if (scenario === "tow") {
+    el.towExtra.style.display = "";
+    const fillPct = Math.min(100, ratio * 100);
     el.strainFill.style.width = `${fillPct}%`;
 
-    const ratio = fillPct / 100;
-    const [r, g, b] = uiStrainColor(ratio);
+    const [r, g, b] = uiStrainColor(fillPct / 100);
     el.strainFill.style.backgroundColor = `rgb(${r},${g},${b})`;
 
-    el.svStrain.textContent = isBroken
-      ? `>${(state.breakStrain * 100).toFixed(1)}%`
-      : `${(strain * 100).toFixed(3)}%`;
-    el.svBreak.textContent = `${(state.breakStrain * 100).toFixed(1)}%`;
-    el.svStretch.textContent = `${stretch.toFixed(4)} L`;
+    el.svStrainLabel.textContent = "Tow Load";
+    el.svStrain.textContent = formatLoadIndex(phys);
+    el.svBreakLabel.textContent = "Steel Strain";
+    el.svBreak.textContent = strainDefined ? formatStrainPercent(phys) : "n/a";
+    el.svStretchLabel.textContent = "Elastic Stretch";
+    el.svStretch.textContent = strainDefined ? `${stretch.toFixed(4)} L` : "n/a";
+    el.strainBarNote.textContent =
+      "Bar fills 0 to 100% against the selected load reference. The loaded steel cable remains intact.";
 
-    if (isBroken) {
-      el.statusBadge.className = "status-badge s-broken";
-      el.statusBadge.textContent = "SNAPPED";
-      el.svStrain.style.color = "var(--cable-danger)";
-    } else if (slackFraction > 0.005) {
+    if (spanDegenerate) {
+      el.statusBadge.className = "status-badge s-tow";
+      el.statusBadge.textContent = "CONTACT SPAN";
+      el.svStrain.style.color = "var(--text-dim)";
+    } else if (!towSignalActive) {
       el.statusBadge.className = "status-badge s-slack";
-      el.statusBadge.textContent = "SLACK";
+      el.statusBadge.textContent = "LOAD BUILDING";
       el.svStrain.style.color = "var(--text-dim)";
     } else if (ratio > 0.72) {
       el.statusBadge.className = "status-badge s-tension";
-      el.statusBadge.textContent = "HIGH TENSION";
+      el.statusBadge.textContent = "HIGH LOAD";
       el.svStrain.style.color = "var(--cable-warn)";
     } else {
-      el.statusBadge.className = "status-badge s-intact";
-      el.statusBadge.textContent = "TAUT";
+      el.statusBadge.className = "status-badge s-tow";
+      el.statusBadge.textContent = "IDEAL TOW";
       el.svStrain.style.color = "var(--text-bright)";
     }
+
+    el.svMechLoad.textContent = towSignalActive
+      ? `αA ${phys.properAlphaA.toFixed(4)}, αB ${phys.properAlphaB.toFixed(4)} c/yr`
+      : `load front ${(phys.loadProgress * 100).toFixed(0)}% of ${signalDelay.toFixed(3)} yr span`;
+    el.svTowGap.textContent = phys.cable_lab.toFixed(3);
+    return;
+  }
+
+  el.towExtra.style.display = "none";
+  const fillPct = Math.min(100, ratio * 100);
+  el.strainFill.style.width = `${fillPct}%`;
+
+  const [r, g, b] = uiStrainColor(fillPct / 100);
+  el.strainFill.style.backgroundColor = `rgb(${r},${g},${b})`;
+
+  el.svStrainLabel.textContent = "Current Strain";
+  el.svStretchLabel.textContent = "Abs. Stretch";
+  el.svStrain.textContent = !strainDefined || spanDegenerate
+    ? "n/a"
+    : isBroken
+      ? `>${(state.breakStrain * 100).toFixed(1)}%`
+      : `${(strain * 100).toFixed(3)}%`;
+  el.svBreakLabel.textContent = "Snaps At";
+  el.svBreak.textContent = `${(state.breakStrain * 100).toFixed(1)}%`;
+  el.svStretch.textContent = strainDefined
+    ? `${stretch.toFixed(4)} L`
+    : "n/a";
+  el.strainBarNote.textContent =
+    "Bar fills 0 to 100% from slack or intact state to the snapping point.";
+
+  if (!strainDefined || spanDegenerate) {
+    el.statusBadge.className = "status-badge s-slack";
+    el.statusBadge.textContent = "CONTACT SPAN";
+    el.svStrain.style.color = "var(--text-dim)";
+  } else if (isBroken) {
+    el.statusBadge.className = "status-badge s-broken";
+    el.statusBadge.textContent = "SNAPPED";
+    el.svStrain.style.color = "var(--cable-danger)";
+  } else if (slackFraction > 0.005) {
+    el.statusBadge.className = "status-badge s-slack";
+    el.statusBadge.textContent = "SLACK";
+    el.svStrain.style.color = "var(--text-dim)";
+  } else if (ratio > 0.72) {
+    el.statusBadge.className = "status-badge s-tension";
+    el.statusBadge.textContent = "HIGH TENSION";
+    el.svStrain.style.color = "var(--cable-warn)";
+  } else {
+    el.statusBadge.className = "status-badge s-intact";
+    el.statusBadge.textContent = "TAUT";
+    el.svStrain.style.color = "var(--text-bright)";
   }
 }
 
@@ -1948,7 +1992,13 @@ function setup() {
 
   el.slBreak.addEventListener("input", (e) => {
     state.breakStrain = +e.target.value / 100;
-    el.valBreak.textContent = (+e.target.value).toFixed(1) + "%";
+    updateBreakControlValue();
+    updateAll();
+  });
+
+  el.slRopeLength.addEventListener("input", (e) => {
+    state.ropeLength = +e.target.value;
+    updateRopeLengthValue();
     updateAll();
   });
 
@@ -1961,26 +2011,15 @@ function setup() {
     updateAll();
   });
 
-  // Rope length buttons
-  document.querySelectorAll(".rope-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document
-        .querySelectorAll(".rope-btn")
-        .forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      state.ropeLength = parseFloat(btn.dataset.rope);
-      el.valRopeLength.textContent = state.ropeLength.toFixed(1) + " × D";
-      updateAll();
-    });
-  });
-
   document.querySelectorAll('input[name="scenario"]').forEach((radio) => {
     radio.addEventListener("change", (e) => {
-      state.scenario = e.target.value;
+      state.scenario = Physics.normalizeScenario(e.target.value);
       $("sc-bell").className =
         "scenario-card" + (state.scenario === "bell" ? " active-bell" : "");
       $("sc-tow").className =
         "scenario-card" + (state.scenario === "tow" ? " active-tow" : "");
+      $("sc-born").className =
+        "scenario-card" + (state.scenario === "born" ? " active-born" : "");
       updateAll();
     });
   });

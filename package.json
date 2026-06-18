@@ -1,0 +1,11 @@
+{
+  "name": "bells-spaceship-paradox",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check physics.js && node --check script.js && pnpm test"
+  }
+}
