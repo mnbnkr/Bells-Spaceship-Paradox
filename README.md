@@ -11,17 +11,25 @@ years, and proper acceleration in `c/yr`.
 Bell's paradox begins with two ships initially at rest in the lab frame,
 separated by center distance `D`, and connected by a fragile rope. In Bell mode
 both ship centers follow the same constant proper-acceleration program. Their
-lab-frame separation stays fixed, but the momentarily comoving span demand
-increases. After slack is used, a fragile rope must stretch and can fail.
+lab-frame separation stays fixed, while the familiar central-anchor Lorentz
+proxy increases. After slack is used, the site displays a threshold crossing for
+that proxy rather than a full material-failure calculation.
 
-`Strong Tow` is a loaded very-strong-cable approximation. Only Ship B fires its
-rocket. Ship A is accelerated by cable tension, so the canvas does not draw a
-Ship A exhaust plume. The cable approaches the Rindler stiff limit: its
-lab-frame span contracts, its material span stays nearly fixed, and the trailing
-constraint has greater proper acceleration than the leading engine. The cable is
-treated as strong enough not to fail, with a small steel-like elastic strain
-capped at `0.2%`. The interface shows load index, steel strain, and elastic
-stretch rather than a snapped state.
+The launch is modeled as beginning simultaneously at lab time `t = 0`. Before
+that time the ships are at rest. This matters in the Proper Frame: an
+instantaneous slice through Ship B can intersect Ship A before the modeled
+launch. The page shows that clock as `PRE-START`, rather than extending an
+accelerated worldline into an unmodeled earlier history.
+
+`Strong Tow` is a quasi-static loaded very-strong-cable comparison, not a
+causal launch-transient calculation. Only Ship B has a rocket marker. Ship A's
+displayed acceleration is tension-driven, so the canvas does not draw a Ship A
+exhaust plume. The geometry uses a Rindler-like stiff limit: its lab-frame span
+contracts, its material span stays nearly fixed, and the trailing constraint has
+greater proper acceleration than the leading engine. The cable is treated as
+strong enough not to fail, with a small illustrative steel-like elastic strain
+capped at `0.2%`. The normalization ramp is not a stress wave or a signal
+propagation prediction.
 
 `Born-Rigid Reference` is the exact Rindler benchmark. It is not a material rope
 model. The trailing ship uses `alpha_A = alpha`, the leading ship uses
@@ -38,9 +46,10 @@ The left canvas is the main simulator.
 
 - `Play`, `Reset`, and `Speed` control animation playback.
 - `Observer Frame` shows the inertial lab frame.
-- `Proper Frame` shows the instantaneous simultaneity slice for the selected
-  marker. Click Ship A, Ship B, or the rope/cable/reference midpoint marker on
-  the canvas to change that slice.
+- `Proper Frame` shows one momentarily comoving inertial (MCIF) slice for the
+  selected marker. Only the selected marker is at rest on that slice. Click
+  Ship A, Ship B, or the rope/cable/reference midpoint marker on the canvas to
+  change the slice.
 - The top badge reports the selected observer's Lorentz factor, velocity, and
   ordinary mission clock. Ordinary mission clocks are monotonic.
 - The bottom observer badge states the active frame and selected marker.
@@ -57,8 +66,8 @@ The `Simulation Controls` panel changes the model.
 - `Rope Break Strain` applies only to Bell's fragile rope.
 - `Tow Load Reference` applies only to Strong Tow and scales the load index. It
   does not turn the tow cable into a fragile rope.
-- `Reference Tolerance` appears in Born-Rigid Reference as a non-failure
-  comparison control.
+- `Reference Status` is disabled in Born-Rigid Reference because the exact
+  kinematic benchmark has no material tolerance or failure threshold.
 - `Rope Natural Length (L0)` is a slider from `1.0 x span` to `2.0 x span`.
   It changes Bell's fragile-rope slack. It remains visible but disabled in
   Strong Tow and Born-Rigid Reference because those models do not use Bell's
@@ -72,9 +81,10 @@ The `Simulation Controls` panel changes the model.
 The right column explains the numbers.
 
 - `Live Equations` shows velocity, Lorentz factor, ship proper time or
-  selected-slice clock samples, lab gap, scenario-specific gap/span,
-  natural/reference span, coordinate span, required span, stretch, Bell strain,
-  Tow acceleration split, steel strain, and Born reference values.
+  selected-slice clock samples, lab gap, the selected-MCIF gap, natural or
+  reference span, coordinate span, selected cable slice, Bell's kinematic
+  threshold proxy, Tow acceleration split, steel strain, and Born reference
+  values.
 - The monitor panel shows Bell strain, Tow load, or Born reference status.
 - `Details` under the insight box gives compact scenario-specific notes.
 - `The Physics Explained` gives the lab-frame and proper-slice interpretation.
@@ -92,26 +102,28 @@ samples. A slice sample is the clock reading on a remote worldline at the event
 that the selected observer regards as simultaneous. These samples change when
 Ship A, the midpoint, or Ship B is selected as the observer marker.
 
-In Bell mode, `gamma*D` remains the simplified center stress-demand estimate.
-The Proper Frame drawing uses the exact selected-slice center span, so changing
-the observer marker can change the displayed slice span and can put a remote
-clock before the modeled mission start.
+In Bell mode, `gamma*D` is the familiar central-anchor Lorentz proxy. It gives
+the standard required span once the common acceleration program has ended, but
+it is not a unique simultaneous rope length while acceleration is active. The
+Proper Frame drawing uses exact selected-MCIF events, so changing the observer
+marker can change the displayed slice span and can put a remote clock before the
+modeled mission start.
 
-For Bell and Tow, some selected instantaneous slices intersect a remote
-worldline before the modeled mission starts. The simulator displays those cases
-as `PRE-START` on the canvas and `n/a` in the equation row instead of clamping
-them to `0.000 yr` or showing a negative mission time.
+For Bell, some selected instantaneous slices intersect a remote worldline before
+the modeled mission starts. The simulator displays those cases as `PRE-START`
+on the canvas and `n/a` in the equation row instead of clamping them to
+`0.000 yr` or showing a negative mission time.
 
 ## Scenario Guide
 
 In `Bell's Paradox`, both centers share the same acceleration program and the
-lab gap remains `D`. The increasing comoving span demand is what makes the
-fragile rope stretch after slack is exhausted.
+lab gap remains `D`. The increasing central-anchor Lorentz proxy drives the
+displayed threshold once slack is exhausted.
 
-In `Strong Tow`, Ship B is the only rocket-thrust source. Ship A's motion is
-supplied by cable tension in a loaded steel-cable approximation. The model uses
-Rindler-family material worldlines for the steady stiff-cable state, so the lab
-span contracts while the material span remains nearly fixed:
+In `Strong Tow`, Ship B is the only rocket-marked source. Ship A's displayed
+motion is supplied by cable tension in a loaded steel-cable approximation. The
+model uses Rindler-family material worldlines as a steady stiff-cable reference,
+so the lab span contracts while the material span remains nearly fixed:
 
 ```text
 alpha_B = alpha_A / (1 + alpha_A D_eff)
@@ -123,9 +135,9 @@ The load index is converted into a small steel-like strain using
 steelStrain = min(0.002, 0.0015 * loadIndex)
 ```
 
-so the cable can stretch slightly while remaining far from a failure state. Any
-load-propagation display is a reference cue, not a full transient wave solution.
-This is not a full relativistic elasticity solver.
+so the cable can stretch slightly while remaining far from a failure state. The
+load ramp is only a reference cue, not a signal front or a transient wave
+solution. This is not a relativistic elasticity solver.
 
 In `Born-Rigid Reference`, the ships belong to one Rindler family. Ship A has
 greater proper acceleration than Ship B. The lab-frame gap decreases at common
@@ -140,23 +152,31 @@ lab time, while the proper separation stays fixed.
 - `gamma`: Lorentz factor for the displayed or selected observer.
 - `tau`: ordinary mission proper time.
 - `DeltaAttach`: Ship B attachment offset minus Ship A attachment offset.
-- `Coord. Span`: attachment-point distance on the lab slice.
-- `Required Span`: span demand used by the active scenario.
-- `Material Strain`: Bell stretch divided by `L0`.
+- `Coord. Span`: exact attachment-point distance on the displayed lab slice.
+- `Selected Slice Span`: exact attachment-point distance on the chosen MCIF
+  slice.
+- `Required Span`: Observer Frame's scenario-specific span. In Bell mode it is
+  a central-anchor kinematic proxy during acceleration.
+- `Kinematic Stretch Proxy`: Bell's proxy span minus `L0`, after slack is used.
+- `Proxy Strain`: Kinematic Stretch Proxy divided by `L0`; it drives the Bell
+  threshold display and is not a stress-tensor calculation.
 - `Tow Load Index`: Strong Tow load demand divided by the selected reference.
   It is not cable elongation or a failure threshold.
 - `Steel Strain`: Strong Tow's reduced elastic strain, capped at `0.2%`.
 - `Tow Accel. Split`: Strong Tow proper acceleration values, with the trailing
   cable constraint larger than the leading engine value.
-- `Engine Alpha`: visual rocket thrust marker. In Strong Tow and Born-Rigid
-  Reference, Ship A can have kinematic or cable-tension acceleration without a
-  Ship A exhaust plume.
+- `Engine Alpha`: visual rocket thrust marker. Strong Tow draws Ship B's marker
+  only. Born-Rigid Reference draws no engine marker because it specifies a
+  kinematic congruence, not a propulsion arrangement.
 
 ## Physics Scope
 
 This site models special-relativistic kinematics and a simplified fragile-rope
-threshold for Bell mode. It does not model full continuum elasticity, material
-sound speed, plastic deformation, thermal effects, or quantum material limits.
+threshold for Bell mode. Ship endpoint placement uses exact local Born-rigid
+worldlines. The Bell break threshold is deliberately simpler: it is a
+central-anchor kinematic proxy, not a stress tensor or a full rope dynamics
+solution. The site does not model continuum elasticity, material sound speed,
+plastic deformation, thermal effects, or quantum material limits.
 
 Strong Tow uses a non-snapping loaded steel cable with a small reduced elastic
 response. The displayed load is a reference demand, and the displayed steel
@@ -165,6 +185,7 @@ sound-speed solution, or plastic deformation model.
 
 Useful references:
 
+- [Dewan and Beran, “Note on Stress Effects Due to Relativistic Contraction”](https://doi.org/10.1119/1.1934929)
 - [Bell's Spaceship Paradox, UCR Physics FAQ](https://math.ucr.edu/home/baez/physics/Relativity/SR/BellSpaceships/spaceship_puzzle.html)
 - [Bell's spaceship paradox overview](https://en.wikipedia.org/wiki/Bell%27s_spaceship_paradox)
 - [Rindler coordinates and Born-rigid acceleration](https://en.wikipedia.org/wiki/Rindler_coordinates)

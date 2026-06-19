@@ -82,16 +82,26 @@ test("Bell mode natural length respects rope factor and attachment offsets", () 
   approx(p.L_init, 8);
 });
 
-test("Bell mode no-slack attachment stretch is independent of attachment offsets", () => {
+test("Bell mode attachment geometry follows the exact rigid-ship worldlines", () => {
   const settings = { t: 2, a: 0.8, L_gap: 3, ropeLength: 1 };
   const center = physics.computeBell({ ...settings, aA: 0, aB: 0 });
   const endToEnd = physics.computeBell({ ...settings, aA: -0.5, aB: 0.5 });
   const nearEnds = physics.computeBell({ ...settings, aA: 0.5, aB: -0.5 });
-  const expected = settings.L_gap * (center.gamma - 1);
+  const h = 1 / settings.a;
+  const point = (xi) => Math.sqrt((h + xi) ** 2 + settings.t ** 2) - h;
+  const expectedEndToEndLab =
+    settings.L_gap + point(0.5) - point(-0.5);
+  const expectedNearEndsLab =
+    settings.L_gap + point(-0.5) - point(0.5);
 
-  approx(center.stretch, expected);
-  approx(endToEnd.stretch, expected);
-  approx(nearEnds.stretch, expected);
+  approx(center.cable_lab, settings.L_gap);
+  approx(endToEnd.cable_lab, expectedEndToEndLab);
+  approx(nearEnds.cable_lab, expectedNearEndsLab);
+  approx(endToEnd.stress_span, endToEnd.cable_lab * endToEnd.gamma);
+  approx(nearEnds.stress_span, nearEnds.cable_lab * nearEnds.gamma);
+  assert.equal(center.attachmentStressApproximate, false);
+  assert.equal(endToEnd.attachmentStressApproximate, true);
+  assert.notEqual(endToEnd.stretch, center.stretch);
 });
 
 test("Bell mode uses slack before material strain grows", () => {
@@ -198,7 +208,7 @@ test("Bell proper-slice clocks depend on the selected observer without fake zero
   approx(fromB.slice_tau_B_center, fromB.clock_tau_B_center);
 });
 
-test("Bell selected-slice spans are exact observer-dependent MCIF quantities", () => {
+test("Bell selected-slice spans use the physical piecewise launch worldlines", () => {
   const fromA = physics.computeBell({
     t: 2,
     a: 0.8,
@@ -219,12 +229,40 @@ test("Bell selected-slice spans are exact observer-dependent MCIF quantities", (
   });
 
   assert.ok(fromA.slice_gap > fromA.prop_gap);
-  approx(fromMid.slice_gap, fromMid.prop_gap);
+  assert.ok(fromMid.slice_gap > fromMid.prop_gap);
   assert.ok(fromB.slice_gap > 0);
-  assert.ok(fromB.slice_gap < fromB.prop_gap);
+  assert.ok(fromB.slice_gap < 3);
+  assert.equal(fromB.slice_tau_A_center, null);
+  assert.equal(fromB.frame_A_center.missionActive, false);
+  assert.equal(fromB.frame_B_center.missionActive, true);
+  approx(fromB.frame_A_center.v, -fromB.v);
+  approx(
+    fromB.slice_gap,
+    fromB.frame_B_center.x - fromB.frame_A_center.x,
+  );
   approx(fromA.slice_cable_span, fromA.slice_gap);
   approx(fromMid.slice_cable_span, fromMid.slice_gap);
   approx(fromB.slice_cable_span, fromB.slice_gap);
+});
+
+test("Bell Ship B slice uses Ship A's inertial pre-launch event exactly", () => {
+  const t = 2;
+  const a = 0.8;
+  const D = 3;
+  const p = physics.computeBell({ t, a, L_gap: D, selectedObserver: "B" });
+  const gamma = Math.sqrt(1 + (a * t) ** 2);
+  const v = (a * t) / gamma;
+  const xB = (gamma - 1) / a + D;
+  const simultaneousLabTimeAtA = t - v * xB;
+  const expectedAFrameX = gamma * (-v * simultaneousLabTimeAtA);
+  const expectedBFrameX = gamma * (xB - v * t);
+
+  assert.ok(simultaneousLabTimeAtA < 0);
+  approx(p.frame_A_center.x, expectedAFrameX);
+  approx(p.frame_B_center.x, expectedBFrameX);
+  approx(p.slice_gap, expectedBFrameX - expectedAFrameX);
+  approx(p.frame_A_center.v, -v);
+  assert.equal(p.frame_A_center.missionActive, false);
 });
 
 test("Bell endpoint slice clocks follow material point worldlines", () => {
@@ -251,7 +289,7 @@ test("Bell endpoint slice clocks follow material point worldlines", () => {
   assert.ok(fromB.slice_tau_B_center < fromB.slice_tau_B_front);
 });
 
-test("Strong Tow starts as a Ship B rocket scenario", () => {
+test("Strong Tow starts with a Ship B engine marker and an illustrative load ramp", () => {
   const p = physics.computeTow({ t: 0, a: 0.8, L_gap: 3 });
   const expectedLeadAlpha = 0.8 / (1 + 0.8 * 3);
 
@@ -266,8 +304,8 @@ test("Strong Tow starts as a Ship B rocket scenario", () => {
   approx(p.properAlphaA, 0.8);
   approx(p.properAlphaB, expectedLeadAlpha);
   assert.ok(p.properAlphaA > p.properAlphaB);
-  approx(p.signalDelay, 3);
-  assert.equal(p.towSignalActive, false);
+  approx(p.loadRampDuration, 3);
+  assert.equal(p.loadRampComplete, false);
   assert.equal(p.isBroken, false);
 });
 
@@ -282,7 +320,7 @@ test("Strong Tow contracts in the lab while load builds", () => {
   assert.ok(p.lab_gap < 3);
   assert.ok(p.cable_lab < p.cable_prop);
   assert.ok(p.cable_prop > p.L_init);
-  assert.equal(p.towSignalActive, false);
+  assert.equal(p.loadRampComplete, false);
   assert.equal(p.engineAlphaA, 0);
   approx(p.engineAlphaB, p.properAlphaB);
   assert.ok(p.properAlphaA > p.properAlphaB);
@@ -299,10 +337,10 @@ test("Strong Tow contracts in the lab while load builds", () => {
   assert.ok(p.clock_tau_B_back < p.clock_tau_B_front);
 });
 
-test("Strong Tow pulls Ship A by cable tension after load is established", () => {
+test("Strong Tow shows its steady reference after the illustrative ramp", () => {
   const p = physics.computeTow({ t: 5, a: 0.8, L_gap: 3 });
 
-  assert.equal(p.towSignalActive, true);
+  assert.equal(p.loadRampComplete, true);
   assert.ok(p.vA > 0);
   assert.ok(p.vA > p.vB);
   assert.ok(p.lab_gap < 3);
@@ -450,7 +488,9 @@ test("Born-Rigid Reference gives the leading ship lower proper acceleration", ()
   approx(p.properAlphaA, a);
   approx(p.properAlphaB, p.leadAlpha);
   approx(p.engineAlphaA, 0);
-  approx(p.engineAlphaB, p.leadAlpha);
+  approx(p.engineAlphaB, 0);
+  approx(p.rocketAlphaA, 0);
+  approx(p.rocketAlphaB, 0);
   assert.ok(p.leadAlpha < p.trailingAlpha);
   assert.ok(p.vLead < p.v);
 });
@@ -482,6 +522,24 @@ test("Born-Rigid Reference keeps attachment span fixed in the Rindler frame", ()
   approx(p.cable_prop, 4);
   approx(p.stress_span, 4);
   approx(p.strain, 0);
+});
+
+test("Born-Rigid Reference places the cable clock at the attachment midpoint", () => {
+  const a = 0.8;
+  const t = 2;
+  const p = physics.computeBornRigid({
+    t,
+    a,
+    L_gap: 3,
+    aA: 0.5,
+    aB: 0.5,
+  });
+  const h = 1 / a;
+  const xiCableMid = 0.5 + p.cable_prop / 2;
+  const expectedTau = (h + xiCableMid) * Math.asinh(t / (h + xiCableMid));
+
+  approx(p.clock_tau_cable, expectedTau);
+  approx(p.frame_cable.v, 0);
 });
 
 test("Born-Rigid Reference slice clocks respond to observer marker selection", () => {
@@ -533,4 +591,163 @@ test("Born-Rigid Reference has the correct t=0 limit", () => {
   approx(p.prop_gap, 3);
   approx(p.tau, 0);
   approx(p.tauLead, 0);
+});
+
+test("every proper-frame slice is simultaneous in its selected MCIF", () => {
+  for (const scenario of ["bell", "tow", "born"]) {
+    for (const selectedObserver of ["A", "B", "rope"]) {
+      const p = physics.compute({
+        scenario,
+        selectedObserver,
+        t: 2,
+        a: 0.8,
+        L_gap: 3,
+      });
+      const frames = [
+        p.frame_A_back,
+        p.frame_A_center,
+        p.frame_A_front,
+        p.frame_B_back,
+        p.frame_B_center,
+        p.frame_B_front,
+        p.frame_cable,
+      ];
+      for (const frame of frames) {
+        assertFinite(frame.T, `${scenario} ${selectedObserver} slice time`);
+        assertFinite(frame.x, `${scenario} ${selectedObserver} slice position`);
+        assertFinite(frame.v, `${scenario} ${selectedObserver} slice velocity`);
+        approx(frame.T, p.frame_A_center.T, 1e-8);
+      }
+      const selectedVelocity =
+        selectedObserver === "A"
+          ? p.frame_A_center.v
+          : selectedObserver === "B"
+            ? p.frame_B_center.v
+            : p.frame_cable.v;
+      approx(selectedVelocity, 0, 1e-8);
+    }
+  }
+});
+
+test("Born and Tow retain their reference spans on every selected MCIF slice", () => {
+  for (const scenario of ["tow", "born"]) {
+    const fromA = physics.compute({
+      scenario,
+      selectedObserver: "A",
+      t: 2,
+      a: 0.8,
+      L_gap: 3,
+    });
+    const fromB = physics.compute({
+      scenario,
+      selectedObserver: "B",
+      t: 2,
+      a: 0.8,
+      L_gap: 3,
+    });
+    assert.ok(fromA.slice_gap > 0);
+    assert.ok(fromB.slice_gap > 0);
+    approx(fromA.slice_gap, fromA.prop_gap);
+    approx(fromB.slice_gap, fromB.prop_gap);
+    assert.ok(fromA.prop_gap > 0);
+    assert.ok(fromB.prop_gap > 0);
+  }
+});
+
+test("zero acceleration is a finite inertial limit in every scenario", () => {
+  for (const scenario of ["bell", "tow", "born"]) {
+    const p = physics.compute({
+      scenario,
+      selectedObserver: "B",
+      t: 2,
+      a: 0,
+      L_gap: 3,
+    });
+    assertFiniteModel(p, `${scenario} zero acceleration`);
+    approx(p.vA, 0);
+    approx(p.vB, 0);
+    approx(p.gammaA, 1);
+    approx(p.gammaB, 1);
+    approx(p.lab_gap, 3);
+    approx(p.slice_gap, 3);
+    approx(p.clock_tau_A_center, 2);
+    approx(p.clock_tau_B_center, 2);
+  }
+});
+
+test("dense UI-domain sweep preserves frame and kinematic invariants", () => {
+  const frameKeys = [
+    "frame_A_back",
+    "frame_A_front",
+    "frame_A_center",
+    "frame_B_back",
+    "frame_B_front",
+    "frame_B_center",
+    "frame_A_attach",
+    "frame_B_attach",
+    "frame_cable",
+  ];
+
+  for (const scenario of ["bell", "tow", "born"]) {
+    for (const a of [0.1, 0.45, 0.8, 1.15, 1.5]) {
+      for (let t = 0; t <= 6; t += 0.25) {
+        for (const L_gap of [1, 3, 5]) {
+          for (const aA of [-0.5, 0, 0.5]) {
+            for (const aB of [-0.5, 0, 0.5]) {
+              for (const selectedObserver of ["A", "B", "rope"]) {
+                const p = physics.compute({
+                  scenario,
+                  a,
+                  t,
+                  L_gap,
+                  aA,
+                  aB,
+                  ropeLength: 1.5,
+                  selectedObserver,
+                });
+                const frameTime = p.frame_A_center.T;
+                for (const key of frameKeys) {
+                  const frame = p[key];
+                  assertFinite(frame.T, `${scenario} ${key} time`);
+                  assertFinite(frame.x, `${scenario} ${key} position`);
+                  assertFinite(frame.v, `${scenario} ${key} velocity`);
+                  approx(frame.T, frameTime, 1e-8);
+                  assert.ok(Math.abs(frame.v) < 1, `${scenario} ${key} speed`);
+                }
+                const observerFrame =
+                  selectedObserver === "A"
+                    ? p.frame_A_center
+                    : selectedObserver === "B"
+                      ? p.frame_B_center
+                      : p.frame_cable;
+                approx(observerFrame.v, 0, 1e-8);
+                approx(p.slice_gap, p.frame_B_center.x - p.frame_A_center.x, 1e-8);
+                approx(
+                  p.slice_cable_span,
+                  p.frame_B_attach.x - p.frame_A_attach.x,
+                  1e-8,
+                );
+                assert.ok(p.strain >= 0);
+                assert.ok(p.stretch >= 0);
+
+                if (scenario === "bell") {
+                  approx(p.lab_gap, L_gap);
+                  approx(p.C_B - p.C_A, L_gap);
+                  approx(p.gamma, Math.sqrt(1 + (a * t) ** 2));
+                  approx(p.stress_span, p.cable_lab * p.gamma);
+                } else {
+                  assert.equal(p.isBroken, false);
+                  assert.equal(p.engineAlphaA, 0);
+                  assert.ok(p.properAlphaA >= p.properAlphaB);
+                  approx(p.slice_gap, p.prop_gap, 1e-8);
+                  approx(p.slice_cable_span, p.cable_prop, 1e-8);
+                  if (t > 0) assert.ok(p.vA >= p.vB);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 });

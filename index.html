@@ -51,10 +51,11 @@
                   <span class="info-wrap" style="vertical-align: middle">
                     <span class="info-btn">i</span>
                     <span class="info-tip"
-                      >Shows the instantaneous simultaneity slice for the
-                      selected observer marker. Bell and tow modes do not share
-                      one global rest frame for both ships. Born-rigid reference
-                      mode uses the exact Rindler construction.</span
+                      >Shows one momentarily comoving inertial (MCIF) slice for
+                      the selected marker. Only that marker is at rest on the
+                      slice. In Bell and Strong Tow, remote objects can move on
+                      the same slice. Born-rigid Reference supplies a separate
+                      exact Rindler comparison.</span
                     >
                   </span>
                 </button>
@@ -102,10 +103,11 @@
                       <span class="info-btn">i</span>
                       <span class="info-tip"
                         >Proper acceleration, the acceleration felt on-board.
-                        Bell mode gives both ships this rocket setting. Strong
-                        Tow uses it as the trailing cable constraint; Ship B's
-                        engine setting is lower and Ship A is pulled by cable
-                        tension. Born-rigid reference mode
+                        Bell mode gives both centers this rocket setting. Strong
+                        Tow uses it as the trailing cable constraint in a
+                        quasi-static loaded-cable approximation; Ship B's engine
+                        setting is lower and Ship A is pulled by cable tension.
+                        Born-rigid Reference mode
                         uses this as Ship A's proper acceleration and gives Ship
                         B αB = α/(1+αD).</span
                       >
@@ -149,16 +151,16 @@
                   value="3.0"
                 />
               </div>
-              <div class="ctrl-row">
+              <div class="ctrl-row" id="break-control-row">
                 <div class="ctrl-label">
                   <span class="ctrl-name" id="ctrl-break-name"
                     >Rope Break Strain
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
                       <span class="info-tip" id="ctrl-break-tip"
-                        >Maximum fractional elongation the rope can endure
-                        before snapping. A truly inextensible rope has near 0%.
-                        Higher values = more forgiving material.</span
+                        >Maximum fractional elongation used by Bell's kinematic
+                        break proxy. A truly inextensible idealization has near
+                        0%. This control is not a full material-stress model.</span
                       >
                     </span>
                   </span>
@@ -188,7 +190,7 @@
                       >
                     </span>
                   </span>
-                  <span class="ctrl-val" id="val-rope-length">1.5 × span</span>
+                  <span class="ctrl-val rope-length-value" id="val-rope-length">1.5 × span</span>
                 </div>
                 <input
                   type="range"
@@ -213,8 +215,7 @@
                   </div>
                   <div class="sc-desc">
                     Both centers follow identical proper-acceleration programs.
-                    Lab gap stays constant while the rope's comoving span demand
-                    grows.
+                    Lab gap stays constant while the γ-based break proxy grows.
                   </div>
                 </label>
                 <label class="scenario-card" id="sc-tow">
@@ -224,9 +225,9 @@
                     <span class="sc-name">Strong Tow</span>
                   </div>
                   <div class="sc-desc">
-                    Only Ship B fires. Ship A is pulled by cable tension. The
-                    loaded steel cable stays intact, contracts in the lab
-                    frame, and stretches only slightly in this approximation.
+                    A quasi-static loaded-cable contrast. Only Ship B has a
+                    rocket marker; Ship A is tension-driven. The cable stays
+                    intact and its small elastic strain is illustrative.
                   </div>
                 </label>
                 <label class="scenario-card" id="sc-born">
@@ -276,8 +277,8 @@
                       <span class="info-tip"
                         >Changing the attachment point changes the initial
                         attachment span D+(ΔAttach)·S₀. A longer natural length
-                        reduces percentage strain after slack is gone, but it
-                        does not remove Bell's increasing comoving span demand.</span
+                        reduces proxy strain after slack is gone, but it
+                        does not remove Bell's increasing central-anchor proxy.</span
                       >
                     </span>
                   </label>
@@ -325,9 +326,9 @@
                 <div class="eq-result" id="eq-tau">0.0000 yr</div>
 
                 <div class="eq-row-label" id="eq-slab-label">
-                  Ship Length (visual)
+                  Ship Length (lab slice)
                   <span class="eq-formula" id="eq-slab-formula"
-                    >Bell center: S₀/γ</span
+                    >exact local rigid-body lab span</span
                   >
                 </div>
                 <div class="eq-result" id="eq-slab">1.0000 L</div>
@@ -352,7 +353,7 @@
                     >Bell's</span
                   >
                   <span class="eq-formula" id="eq-propgap-formula"
-                    >γ · D (stress demand)</span
+                    >γ · D center-line proxy</span
                   >
                 </div>
                 <div class="eq-result cable-color" id="eq-propgap">
@@ -387,7 +388,7 @@
                     ></span
                   >
                   <span class="eq-formula" id="eq-rlab-formula"
-                    >D+(ΔAttach)·S₀/γ</span
+                    >exact attachment-point lab slice</span
                   >
                 </div>
                 <div class="eq-result" id="eq-rlab">3.0000 L</div>
@@ -397,12 +398,13 @@
                   <span class="info-wrap"
                     ><span class="info-btn">i</span
                     ><span class="info-tip"
-                      >Bell mode uses the comoving span required of the rope
-                      after Lorentz contraction is accounted for. Strong Tow
-                      reports the loaded cable's material span after small
-                      elastic strain, while its displayed lab span contracts.
-                      Born-rigid reference mode keeps this equal to the
-                      reference cable's natural length.</span
+                      >In Observer Frame, Bell reports the familiar
+                      center-anchor Lorentz proxy, not a unique simultaneous
+                      rope length during active acceleration. Proper Frame
+                      reports the exact selected attachment span. Strong Tow reports
+                      an illustrative loaded-cable span; Born-rigid Reference
+                      keeps the Rindler reference cable at its natural
+                      length.</span
                     ></span
                   >
                   <span class="eq-formula" id="eq-rprop-formula"
@@ -425,7 +427,7 @@
 
                 <div class="eq-row-label">
                   <strong style="color: var(--text)" id="eq-strain-label-text"
-                    >Material Strain</strong
+                    >Proxy Strain</strong
                   >
                   <span class="eq-formula" id="eq-strain-formula"
                     >Stretch / L₀</span
@@ -469,7 +471,7 @@
                 Key Insight: Bell's Paradox
               </div>
               <div class="insight-eq" id="insight-eq">
-                Stretch = max(0, required span − L₀) = 0.000 L
+                Proxy stretch = max(0, required span − L₀) = 0.000 L
               </div>
               <details class="insight-capsule" id="insight-capsule">
                 <summary>Details ▾</summary>
@@ -486,13 +488,13 @@
           <!-- Strain / Tension monitor -->
           <div class="panel">
             <div class="panel-title" id="monitor-title">
-              Rope Strain Monitor
+              Rope Proxy Monitor
             </div>
             <div class="strain-top">
               <div class="strain-values">
                 <div class="sv-item">
                   <span class="sv-label" id="sv-strain-label"
-                    >Current Strain</span
+                    >Proxy Strain</span
                   >
                   <span class="sv-num" id="sv-strain">0.00%</span>
                 </div>
@@ -519,7 +521,7 @@
               "
               id="strain-bar-note"
             >
-              Bar fills 0→100% = slack/intact → snapping point
+              Bar fills 0→100% from slack or zero proxy strain to the selected threshold
             </p>
             <!-- Scenario-specific extra info -->
             <div id="tow-extra" style="display: none">
@@ -554,44 +556,44 @@
               <p>
                 <strong>The Setup:</strong> Two identical ships begin at rest,
                 separated by proper distance D, connected by a fragile rope of
-                natural length L₀ ≥ D. Bell mode gives both ships the same
-                rocket program. Strong Tow shows only Ship B's rocket engine,
-                while Ship A's motion comes from cable tension and the loaded
-                cable contracts in the lab frame. Born-rigid Reference changes
-                the proper-acceleration profile to show the exact Rindler
+                natural length L₀ ≥ D. Bell mode gives both centers the same
+                rocket program. Strong Tow is a quasi-static loaded-cable
+                contrast: Ship B has the only rocket marker, while Ship A's
+                motion is tension-driven. Born-rigid Reference changes the
+                proper-acceleration profile to show the exact Rindler
                 benchmark.
               </p>
               <div class="callout">
                 <strong>Observer Frame (lab): why the rope snaps:</strong>
                 Both ship centers maintain a
                 <em>constant coordinate gap D</em> for all time. But each moving
-                ship Lorentz-contracts. At speed v the visual ship length is
-                represented as S₀/γ. An
-                unstressed rope of natural length D would also contract to D/γ.
-                The anchored ships <em>prevent</em> this contraction, forcing
-                the rope to span the full lab gap D. The displayed stress demand
-                grows with γ while the natural length stays L₀, so the rope
-                stretches after slack is gone and snaps once the strain exceeds
-                its tolerance.
+                ship's exact lab-slice length approaches S₀/γ in the thin-ship
+                limit. An unstressed rope of natural length D would contract to
+                D/γ after the common acceleration program ends. The anchored
+                ships <em>prevent</em> this contraction, forcing the rope to
+                span the full lab gap D. The displayed break threshold uses the
+                standard γ-based central-anchor proxy after slack is gone. The
+                selected MCIF panel shows why active acceleration has no unique
+                simultaneous rope length.
               </div>
               <div class="callout callout-b">
                 <strong
-                  >Proper Frame (selected slice): the same result, different
-                  view:</strong
+                  >Proper Frame (selected MCIF slice): different observers,
+                  different distant events:</strong
                 >
-                In Ship B's instantaneous comoving inertial slice,
-                <em>relativity of simultaneity</em> means the two "start" events
-                are not simultaneous. This is not a shared global rest frame for
-                the Bell ships. The key invariant lesson is that the Bell setup
-                is not Born rigid: the rope is asked to meet an increasing
-                comoving span demand while its natural length is fixed.
+                In Ship B's momentarily comoving inertial slice,
+                <em>relativity of simultaneity</em> can place Ship A at an event
+                before the modeled launch. Ship A is then not at rest on that
+                slice. A change in selected-slice distance is not a single-frame
+                statement that one ship simply moves closer. Bell mode has no
+                shared global rest frame while accelerating.
               </div>
               <div class="callout callout-g">
-                <strong>Strong Tow:</strong> Only Ship B fires its engine. The
-                pull is represented by cable tension rather than a Ship A rocket
-                plume. This loaded steel-cable approximation approaches the
-                Rindler stiff limit: the lab span contracts, Ship A has the
-                higher constraint acceleration, and the material strain remains
+                <strong>Strong Tow:</strong> This is a quasi-static loaded
+                steel-cable contrast, not a causal launch-transient solver. It
+                draws only Ship B's rocket marker and uses a Rindler-like stiff
+                limit to show the tension-driven acceleration split. The lab
+                span contracts and the illustrative material strain remains
                 small and non-snapping.
               </div>
               <div class="callout callout-b">
@@ -601,7 +603,7 @@
                 proper acceleration; Ship B, at the front, uses
                 αB = αA/(1+αA D). The proper separation stays constant at D.
                 This is a mathematical benchmark, not a realistic rope material
-                or a claim that Ship A fires an engine.
+                or a specification of either ship's propulsion.
               </div>
             </div>
           </div>

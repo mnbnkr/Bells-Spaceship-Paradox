@@ -391,16 +391,31 @@ input[type="range"]::-moz-range-thumb {
 }
 .rope-length-row .ctrl-label {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: start;
+  column-gap: 0.4rem;
+  flex-wrap: nowrap;
 }
 .rope-length-row .ctrl-name {
+  min-width: 0;
   max-width: 100%;
+  line-height: 1.3;
+}
+.rope-length-row .rope-length-value {
+  align-self: end;
+  justify-self: end;
+  white-space: nowrap;
 }
 .rope-length-row.disabled {
   opacity: 0.43;
 }
+.ctrl-row.disabled {
+  opacity: 0.43;
+}
 .rope-length-row.disabled input[type="range"] {
+  cursor: not-allowed;
+}
+.ctrl-row.disabled input[type="range"] {
   cursor: not-allowed;
 }
 .rope-length-row.disabled input[type="range"]::-webkit-slider-thumb {

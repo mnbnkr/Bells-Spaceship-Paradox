@@ -54,7 +54,8 @@ test("engine plume copy stays separate from proper acceleration", () => {
   assert.match(physics, /properAlphaA/);
   assert.match(physics, /rocketAlphaA: 0/);
   assert.match(script, /engineAlphaA/);
-  assert.match(userFacing, /without a\s+Ship A exhaust plume|not a claim that Ship A fires an engine/i);
+  assert.match(userFacing, /does not draw a\s+Ship A\s+exhaust plume/i);
+  assert.match(userFacing, /Born-Rigid Reference draws no engine marker/i);
 });
 
 test("Natural Length is a disabled slider outside Bell mode", () => {
@@ -71,6 +72,18 @@ test("Natural Length is a disabled slider outside Bell mode", () => {
   assert.match(script, /setRopeLengthControlEnabled\(false, "fixed span"\)/);
   assert.match(script, /setRopeLengthControlEnabled\(false, "reference"\)/);
   assert.match(style, /\.rope-length-row\.disabled/);
+});
+
+test("Born-Rigid Reference disables its non-applicable threshold control", () => {
+  const html = read("index.html");
+  const script = read("script.js");
+  const style = read("style.css");
+
+  assert.match(html, /id="break-control-row"/);
+  assert.match(script, /function setBreakControlEnabled/);
+  assert.match(script, /setBreakControlEnabled\(false\)/);
+  assert.match(script, /Reference Status/);
+  assert.match(style, /\.ctrl-row\.disabled/);
 });
 
 test("frame tabs are styled as a prominent segmented control", () => {
@@ -120,7 +133,32 @@ test("Simulation Control sliders have a stable label row for alignment", () => {
   assert.match(style, /\.ctrl-label[\s\S]*min-height: 2\.45rem/);
   assert.match(style, /@media \(min-width: 1060px\)[\s\S]*\.controls-grid[\s\S]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(style, /\.rope-length-row[\s\S]*display: grid/);
+  assert.match(style, /\.rope-length-row \.rope-length-value[\s\S]*align-self: end/);
+  assert.match(style, /\.rope-length-row \.rope-length-value[\s\S]*white-space: nowrap/);
   assert.equal(/\.rope-length-row[\s\S]{0,180}grid-column:\s*span/i.test(style), false);
+});
+
+test("Bell proper-frame copy distinguishes exact selected slices from the break proxy", () => {
+  const html = read("index.html");
+  const readme = read("README.md");
+  const script = read("script.js");
+
+  assert.match(html, /momentarily comoving inertial \(MCIF\) slice/);
+  assert.match(readme, /not a unique simultaneous rope length/i);
+  assert.match(readme, /central-anchor Lorentz proxy/);
+  assert.match(readme, /before the modeled\s+launch/);
+  assert.match(script, /exact selected attachment span/);
+  assert.match(script, /Kinematic Stretch Proxy/);
+});
+
+test("Strong Tow avoids presenting its illustrative ramp as a causal signal front", () => {
+  const script = read("script.js");
+  const userFacing = `${read("index.html")}\n${read("README.md")}`;
+
+  assert.match(userFacing, /quasi-static/i);
+  assert.match(userFacing, /not a causal launch-transient/i);
+  assert.match(script, /illustrative ramp/);
+  assert.equal(/load front/i.test(script), false);
 });
 
 test("mobile equation values stack to avoid horizontal overflow", () => {
