@@ -49,9 +49,16 @@ The left canvas is the main simulator.
 - `Proper Frame` shows one momentarily comoving inertial (MCIF) slice for the
   selected marker. Only the selected marker is at rest on that slice. Click
   Ship A, Ship B, or the rope/cable/reference midpoint marker on the canvas to
-  change the slice.
+  change the slice. The camera centers the displayed system for legibility; it
+  does not place the selected observer at a privileged spatial origin.
+- The restrained red and blue canvas tints are visual context, not a spectral
+  renderer. They retain remote craft and exhaust cues without replacing the
+  exact simultaneity slice: red denotes longitudinal recession and blue denotes
+  longitudinal approach. Their opacity is deliberately illustrative.
 - The top badge reports the selected observer's Lorentz factor, velocity, and
-  ordinary mission clock. Ordinary mission clocks are monotonic.
+  mission clock. Ship and cable mission clocks are monotonic. The Bell midpoint
+  is explicitly labelled as a reference, and after the proxy snap it has no
+  displayed clock value.
 - The bottom observer badge states the active frame and selected marker.
 
 The `Simulation Controls` panel changes the model.
@@ -72,13 +79,16 @@ The `Simulation Controls` panel changes the model.
   It changes Bell's fragile-rope slack. It remains visible but disabled in
   Strong Tow and Born-Rigid Reference because those models do not use Bell's
   natural rope length.
+- On wide desktop screens, the five primary controls occupy one aligned row.
+  They wrap at narrower widths without separating a label from its information
+  capsule.
 - `Scenario` switches between Bell's Paradox, Strong Tow, and Born-Rigid
   Reference.
 - `Rope Attachment Point` or `Cable Attachment Point` changes where the
   connector meets each ship. The initial attachment span is
   `D + DeltaAttach*S0`, clamped to contact span when endpoints coincide.
 
-The right column explains the numbers.
+The live panels explain the numbers.
 
 - `Live Equations` shows velocity, Lorentz factor, ship proper time or
   selected-slice clock samples, lab gap, the selected-MCIF gap, natural or
@@ -87,7 +97,9 @@ The right column explains the numbers.
   values.
 - The monitor panel shows Bell strain, Tow load, or Born reference status.
 - `Details` under the insight box gives compact scenario-specific notes.
-- `The Physics Explained` gives the lab-frame and proper-slice interpretation.
+- `The Physics Explained` follows Simulation Controls on wide screens. When the
+  sidebar stacks below the controls, the explanation follows that stacked
+  sidebar so the numerical readouts remain together.
 
 ## Clocks And Slice Samples
 
@@ -109,10 +121,28 @@ Proper Frame drawing uses exact selected-MCIF events, so changing the observer
 marker can change the displayed slice span and can put a remote clock before the
 modeled mission start.
 
+When a user moves either attachment away from a ship center, the endpoint
+worldlines have distinct local proper accelerations. The Bell failure display
+then explicitly switches to a `gamma` times lab-coordinate-span convention. It
+remains a threshold proxy, not an exact endpoint rest length or an elasticity
+calculation; the selected MCIF span remains the exact geometry shown separately.
+
 For Bell, some selected instantaneous slices intersect a remote worldline before
 the modeled mission starts. The simulator displays those cases as `PRE-START`
 on the canvas and `n/a` in the equation row instead of clamping them to
 `0.000 yr` or showing a negative mission time.
+
+### Bell Midpoint Reference
+
+The Bell connector midpoint is a kinematic reference marker, not a solved
+material-particle observer. The simulator has exact ship worldlines and exact
+selected MCIF intersections, but intentionally does not solve relativistic rope
+elasticity, stress-wave propagation, or fragment trajectories after a break.
+Before a Bell proxy break, the midpoint reference lies between the attachment
+events on its selected MCIF. It need not be the coordinate midpoint on every
+remote observer's slice because those endpoints are simultaneous at different
+lab times. Once the proxy reports a snap, its faded marker refers only to the
+former connector and no clock value is shown for it.
 
 ## Scenario Guide
 

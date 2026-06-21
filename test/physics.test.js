@@ -68,6 +68,17 @@ test("Bell mode velocity, gamma, and proper time match hyperbolic motion", () =>
   approx(p.C_B - p.C_A, 3);
 });
 
+test("longitudinal Doppler factor has the correct recession sign convention", () => {
+  approx(physics.longitudinalDopplerFactor(0), 1);
+  assert.ok(physics.longitudinalDopplerFactor(0.5) < 1);
+  assert.ok(physics.longitudinalDopplerFactor(-0.5) > 1);
+  approx(
+    physics.longitudinalDopplerFactor(0.5) *
+      physics.longitudinalDopplerFactor(-0.5),
+    1,
+  );
+});
+
 test("Bell mode natural length respects rope factor and attachment offsets", () => {
   const p = physics.computeBell({
     t: 0,
@@ -243,6 +254,28 @@ test("Bell selected-slice spans use the physical piecewise launch worldlines", (
   approx(fromA.slice_cable_span, fromA.slice_gap);
   approx(fromMid.slice_cable_span, fromMid.slice_gap);
   approx(fromB.slice_cable_span, fromB.slice_gap);
+});
+
+test("Bell midpoint reference remains between attachment events on its MCIF", () => {
+  for (const t of [0, 0.5, 2, 6]) {
+    for (const aA of [-0.5, 0, 0.5]) {
+      for (const aB of [-0.5, 0, 0.5]) {
+        const p = physics.computeBell({
+          t,
+          a: 0.8,
+          L_gap: 3,
+          aA,
+          aB,
+          selectedObserver: "rope",
+        });
+        const left = Math.min(p.frame_A_attach.x, p.frame_B_attach.x);
+        const right = Math.max(p.frame_A_attach.x, p.frame_B_attach.x);
+        assert.ok(p.frame_cable.x >= left - EPS);
+        assert.ok(p.frame_cable.x <= right + EPS);
+        approx(p.frame_cable.x, p.frame_observer.x);
+      }
+    }
+  }
 });
 
 test("Bell Ship B slice uses Ship A's inertial pre-launch event exactly", () => {
@@ -625,6 +658,41 @@ test("every proper-frame slice is simultaneous in its selected MCIF", () => {
             ? p.frame_B_center.v
             : p.frame_cable.v;
       approx(selectedVelocity, 0, 1e-8);
+    }
+  }
+});
+
+test("every selected observer remains at its physical marker and connector geometry stays ordered", () => {
+  for (const scenario of ["bell", "tow", "born"]) {
+    for (const selectedObserver of ["A", "B", "rope"]) {
+      for (const t of [0, 0.5, 2, 6]) {
+        const p = physics.compute({
+          scenario,
+          selectedObserver,
+          t,
+          a: 0.8,
+          L_gap: 3,
+          aA: -0.5,
+          aB: 0.5,
+        });
+        const selectedFrame =
+          selectedObserver === "A"
+            ? p.frame_A_center
+            : selectedObserver === "B"
+              ? p.frame_B_center
+              : p.frame_cable;
+
+        approx(selectedFrame.x, p.frame_observer.x, 1e-8);
+        approx(selectedFrame.T, p.frame_observer.T, 1e-8);
+        approx(selectedFrame.v, 0, 1e-8);
+        assert.ok(p.frame_A_back.x <= p.frame_A_attach.x + 1e-8);
+        assert.ok(p.frame_A_attach.x <= p.frame_A_front.x + 1e-8);
+        assert.ok(p.frame_B_back.x <= p.frame_B_attach.x + 1e-8);
+        assert.ok(p.frame_B_attach.x <= p.frame_B_front.x + 1e-8);
+        assert.ok(p.frame_A_front.x <= p.frame_B_back.x + 1e-8);
+        assert.ok(p.frame_A_attach.x <= p.frame_cable.x + 1e-8);
+        assert.ok(p.frame_cable.x <= p.frame_B_attach.x + 1e-8);
+      }
     }
   }
 });

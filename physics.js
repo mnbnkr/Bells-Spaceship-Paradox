@@ -224,6 +224,15 @@
     return missionTau(point.tau);
   }
 
+  // Longitudinal Doppler factor f_observed / f_emitted for a signed radial
+  // recession speed beta. Positive beta means recession, so the factor is
+  // below one and the light is red-shifted. This is used only to keep the
+  // canvas's deliberately illustrative context tints sign-correct.
+  function longitudinalDopplerFactor(recessionSpeed) {
+    const beta = Math.max(-0.999999, Math.min(0.999999, recessionSpeed || 0));
+    return Math.sqrt((1 - beta) / (1 + beta));
+  }
+
   function observerFramePoint(point, observer) {
     const v = Math.max(-0.999999, Math.min(0.999999, observer.v || 0));
     const gamma = 1 / Math.sqrt(1 - v * v);
@@ -972,6 +981,7 @@
     acceleratedPoint,
     delayedAcceleratedPoint,
     properSpanOnObserverSlice,
+    longitudinalDopplerFactor,
     rindlerX,
     rindlerVelocity,
     rindlerGamma,

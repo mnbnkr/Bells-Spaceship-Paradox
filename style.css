@@ -105,11 +105,21 @@ h1 {
 .grid {
   display: grid;
   grid-template-columns: 1fr;
+  grid-template-areas:
+    "left"
+    "controls"
+    "right"
+    "physics";
   gap: 1.25rem;
 }
-@media (min-width: 1060px) {
+@media (min-width: 1380px) {
   .grid {
-    grid-template-columns: 2.2fr 1fr;
+    grid-template-columns: 1.7fr 1fr;
+    grid-template-areas:
+      "left right"
+      "controls right"
+      "physics right";
+    align-items: start;
   }
 }
 .left-col,
@@ -117,6 +127,20 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-width: 0;
+}
+.left-col {
+  grid-area: left;
+}
+.right-col {
+  grid-area: right;
+}
+.controls-panel {
+  grid-area: controls;
+  min-width: 0;
+}
+.physics-panel {
+  grid-area: physics;
   min-width: 0;
 }
 
@@ -286,10 +310,32 @@ canvas {
   gap: 0.85rem 1.4rem;
   margin-bottom: 0.85rem;
 }
-@media (min-width: 1060px) {
+@media (min-width: 1380px) {
   .controls-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    column-gap: 0.75rem;
+    column-gap: 0.7rem;
+    row-gap: 0.85rem;
+  }
+  .controls-grid .ctrl-row {
+    grid-template-rows: 2.15rem 22px;
+  }
+  .controls-grid .ctrl-label {
+    display: block;
+    min-height: 2.15rem;
+    font-size: 0.54rem;
+    letter-spacing: 0.025em;
+  }
+  .controls-grid .ctrl-name {
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  .controls-grid .ctrl-val {
+    display: block;
+    width: max-content;
+    margin-top: 0.12rem;
+  }
+  .controls-grid .ctrl-val {
+    font-size: 0.56rem;
   }
 }
 .ctrl-row {
@@ -312,12 +358,17 @@ canvas {
   min-height: 2.45rem;
 }
 .ctrl-name {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   min-width: 0;
   white-space: normal;
-  flex-shrink: 1;
+  flex: 1 1 auto;
+}
+.ctrl-name-text,
+.field-label-text,
+.eq-label-text {
+  min-width: 0;
 }
 .ctrl-val {
   font-family: var(--font-m);
@@ -390,16 +441,17 @@ input[type="range"]::-moz-range-thumb {
   display: grid;
 }
 .rope-length-row .ctrl-label {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
+  display: flex;
   align-items: start;
-  column-gap: 0.4rem;
-  flex-wrap: nowrap;
+  gap: 0.3rem;
 }
 .rope-length-row .ctrl-name {
   min-width: 0;
   max-width: 100%;
   line-height: 1.3;
+}
+.rope-length-row .ctrl-name-text {
+  min-width: 0;
 }
 .rope-length-row .rope-length-value {
   align-self: end;
@@ -617,7 +669,9 @@ input[type="range"]::-moz-range-thumb {
   margin-bottom: 0;
 }
 .cfg-row label {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-size: 0.66rem;
   color: var(--text-dim);
   margin-bottom: 0.22rem;
@@ -644,26 +698,40 @@ select:focus {
 /* ── EQUATIONS ── */
 .eq-table-wrap {
   overflow-x: visible;
+  min-width: 0;
 }
 .eq-table {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
   gap: 0.44rem 0.85rem;
   align-items: center;
+  min-width: 0;
 }
 .eq-row-label {
   font-size: 0.74rem;
   color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
+  display: block;
+  line-height: 1.35;
+  min-width: 0;
   transition: opacity 0.3s;
 }
+.eq-label-with-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  white-space: nowrap;
+}
+.eq-label-with-info .info-btn {
+  margin-left: 0;
+}
 .eq-formula {
+  display: block;
   font-family: var(--font-m);
   font-size: 0.6rem;
   color: #38567a;
+  margin-top: 0.08rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .eq-result {
   font-family: var(--font-m);
@@ -672,6 +740,8 @@ select:focus {
   color: var(--text-bright);
   text-align: right;
   white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
   transition: opacity 0.3s;
 }
 .eq-result.v-color {
@@ -929,6 +999,9 @@ select:focus {
   font-size: 0.8rem;
   color: var(--ship-b);
   font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 /* ── TOOLTIP ── */

@@ -29,7 +29,10 @@
         <!-- ══ LEFT COLUMN ══ -->
         <div class="left-col">
           <!-- Canvas panel -->
-          <div class="panel" style="padding: 0.85rem 0.85rem 0.85rem">
+          <div
+            class="panel canvas-panel"
+            style="padding: 0.85rem 0.85rem 0.85rem"
+          >
             <div class="top-toolbar">
               <div class="playback-bar">
                 <button class="btn primary" id="btn-play">▶ Play</button>
@@ -55,7 +58,11 @@
                       the selected marker. Only that marker is at rest on the
                       slice. In Bell and Strong Tow, remote objects can move on
                       the same slice. Born-rigid Reference supplies a separate
-                      exact Rindler comparison.</span
+                      exact Rindler comparison. Subtle red and blue context
+                      tints retain otherwise remote craft details without
+                      changing the selected slice. Red marks recession and blue
+                      approach; the tint is illustrative, not a spectrum
+                      simulation.</span
                     >
                   </span>
                 </button>
@@ -76,14 +83,17 @@
               </div>
             </div>
           </div>
+        </div>
 
           <!-- Controls panel -->
-          <div class="panel">
+          <div class="panel controls-panel">
             <div class="panel-title">Simulation Controls</div>
             <div class="controls-grid">
               <div class="ctrl-row">
                 <div class="ctrl-label">
-                  <span class="ctrl-name">Time (t)</span>
+                  <span class="ctrl-name"
+                    ><span class="ctrl-name-text">Time (t)</span></span
+                  >
                   <span class="ctrl-val" id="val-t">0.00 yr</span>
                 </div>
                 <input
@@ -98,10 +108,10 @@
               <div class="ctrl-row">
                 <div class="ctrl-label">
                   <span class="ctrl-name"
-                    >Acceleration (α)
+                    ><span class="ctrl-name-text">Acceleration (α)</span>
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
-                      <span class="info-tip"
+                      <span class="info-tip" id="ctrl-acceleration-tip"
                         >Proper acceleration, the acceleration felt on-board.
                         Bell mode gives both centers this rocket setting. Strong
                         Tow uses it as the trailing cable constraint in a
@@ -127,10 +137,10 @@
               <div class="ctrl-row">
                 <div class="ctrl-label">
                   <span class="ctrl-name"
-                    >Separation (D)
+                    ><span class="ctrl-name-text">Separation (D)</span>
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
-                      <span class="info-tip"
+                      <span class="info-tip" id="ctrl-separation-tip"
                         >Initial center-to-center distance D. In Bell mode, the
                         lab-frame center gap stays fixed. In Strong Tow, it is
                         the initial material spacing before the loaded cable
@@ -153,8 +163,10 @@
               </div>
               <div class="ctrl-row" id="break-control-row">
                 <div class="ctrl-label">
-                  <span class="ctrl-name" id="ctrl-break-name"
-                    >Rope Break Strain
+                  <span class="ctrl-name"
+                    ><span class="ctrl-name-text" id="ctrl-break-label"
+                      >Rope Break Strain</span
+                    >
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
                       <span class="info-tip" id="ctrl-break-tip"
@@ -178,10 +190,12 @@
               <div id="rope-length-row" class="ctrl-row rope-length-row visible">
                 <div class="ctrl-label">
                   <span class="ctrl-name"
-                    >Rope Natural Length (L₀)
+                    ><span class="ctrl-name-text" id="ctrl-rope-length-label"
+                      >Rope Natural Length (L₀)</span
+                    >
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
-                      <span class="info-tip"
+                      <span class="info-tip" id="ctrl-rope-length-tip"
                         >Natural rest length as a multiple of the initial
                         attachment-point span D + ΔAttach·S₀. It applies to
                         Bell's fragile rope. Strong Tow and Born-Rigid
@@ -250,10 +264,12 @@
                 <div class="ship-card-title ship-a-title">▸ SHIP A: Rear</div>
                 <div class="cfg-row">
                   <label id="attach-label-a"
-                    >Rope Attachment Point
+                    ><span class="field-label-text" id="attach-label-text-a"
+                      >Rope Attachment Point</span
+                    >
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
-                      <span class="info-tip"
+                      <span class="info-tip" id="attach-tip-a"
                         >Where the rope connects to Ship A. Moves the attachment
                         point relative to the ship's center, changing the rope's
                         natural length L₀.</span
@@ -271,10 +287,12 @@
                 <div class="ship-card-title ship-b-title">▸ SHIP B: Front</div>
                 <div class="cfg-row">
                   <label id="attach-label-b"
-                    >Rope Attachment Point
+                    ><span class="field-label-text" id="attach-label-text-b"
+                      >Rope Attachment Point</span
+                    >
                     <span class="info-wrap">
                       <span class="info-btn">i</span>
-                      <span class="info-tip"
+                      <span class="info-tip" id="attach-tip-b"
                         >Changing the attachment point changes the initial
                         attachment span D+(ΔAttach)·S₀. A longer natural length
                         reduces proxy strain after slack is gone, but it
@@ -292,7 +310,6 @@
             </div>
 
           </div>
-        </div>
 
         <!-- ══ RIGHT COLUMN ══ -->
         <div class="right-col">
@@ -348,7 +365,9 @@
                 <div class="eq-result" id="eq-labgap">3.0000 L</div>
 
                 <div class="eq-row-label" id="eq-propgap-label">
-                  Comoving Gap
+                  <span class="eq-label-text" id="eq-propgap-label-text"
+                    >Comoving Gap</span
+                  >
                   <span class="eq-scenario-tag tag-bell" id="eq-propgap-tag"
                     >Bell's</span
                   >
@@ -363,15 +382,17 @@
                 <div class="eq-divider"></div>
 
                 <div class="eq-row-label">
-                  Natural Length L₀
-                  <span class="info-wrap"
-                    ><span class="info-btn">i</span
-                    ><span class="info-tip"
-                      >The unstressed rest length of the rope at t=0. Depends on
-                      initial gap, rope length factor, and attachment
-                      offsets.</span
-                    ></span
-                  >
+                  <span class="eq-label-with-info">
+                    <span id="eq-linit-label">Natural Length L₀</span>
+                    <span class="info-wrap"
+                      ><span class="info-btn">i</span
+                      ><span class="info-tip" id="eq-linit-tip"
+                        >The unstressed rest length of the rope at t=0. Depends on
+                        initial gap, rope length factor, and attachment
+                        offsets.</span
+                      ></span
+                    >
+                  </span>
                   <span class="eq-formula" id="eq-linit-formula"
                     >1.0×(D+(ΔAttach)·S₀)</span
                   >
@@ -379,14 +400,16 @@
                 <div class="eq-result cable-color" id="eq-linit">3.0000 L</div>
 
                 <div class="eq-row-label" id="eq-rlab-label">
-                  Coord. Span
-                  <span class="info-wrap"
-                    ><span class="info-btn">i</span
-                    ><span class="info-tip"
-                      >The coordinate distance between attachment points on the
-                      displayed lab slice.</span
-                    ></span
-                  >
+                  <span class="eq-label-with-info">
+                    <span class="eq-label-text">Coord. Span</span>
+                    <span class="info-wrap"
+                      ><span class="info-btn">i</span
+                      ><span class="info-tip"
+                        >The coordinate distance between attachment points on the
+                        displayed lab slice.</span
+                      ></span
+                    >
+                  </span>
                   <span class="eq-formula" id="eq-rlab-formula"
                     >exact attachment-point lab slice</span
                   >
@@ -394,19 +417,22 @@
                 <div class="eq-result" id="eq-rlab">3.0000 L</div>
 
                 <div class="eq-row-label" id="eq-rprop-label">
-                  Required Span
-                  <span class="info-wrap"
-                    ><span class="info-btn">i</span
-                    ><span class="info-tip"
-                      >In Observer Frame, Bell reports the familiar
-                      center-anchor Lorentz proxy, not a unique simultaneous
-                      rope length during active acceleration. Proper Frame
-                      reports the exact selected attachment span. Strong Tow reports
-                      an illustrative loaded-cable span; Born-rigid Reference
-                      keeps the Rindler reference cable at its natural
-                      length.</span
-                    ></span
-                  >
+                  <span class="eq-label-with-info">
+                    <span class="eq-label-text" id="eq-rprop-label-text"
+                      >Required Span</span
+                    >
+                    <span class="info-wrap"
+                      ><span class="info-btn">i</span
+                      ><span class="info-tip"
+                        >In Observer Frame, Bell reports the familiar
+                        center-anchor Lorentz proxy, not a unique simultaneous
+                        rope length during active acceleration. Proper Frame
+                        reports the exact selected attachment span. Strong Tow reports
+                        an illustrative loaded-cable span; Born-rigid Reference
+                        keeps the Rindler reference span fixed.</span
+                      ></span
+                    >
+                  </span>
                   <span class="eq-formula" id="eq-rprop-formula"
                     >Bell: Coord. Span × γ</span
                   >
@@ -446,14 +472,18 @@
                   id="eq-mech-label"
                   style="display: none"
                 >
-                  Lead Proper Accel.
-                  <span class="info-wrap">
-                    <span class="info-btn">i</span>
-                    <span class="info-tip"
-                      >This row changes by scenario. Strong Tow and Born-rigid
-                      Reference report the proper acceleration split:
-                      αB = αA/(1+αA D).</span
+                  <span class="eq-label-with-info">
+                    <span class="eq-label-text" id="eq-mech-label-text"
+                      >Lead Proper Accel.</span
                     >
+                    <span class="info-wrap">
+                      <span class="info-btn">i</span>
+                      <span class="info-tip"
+                        >This row changes by scenario. Strong Tow and Born-rigid
+                        Reference report the proper acceleration split:
+                        αB = αA/(1+αA D).</span
+                      >
+                    </span>
                   </span>
                 </div>
                 <div
@@ -532,6 +562,7 @@
                 >
               </div>
               <p
+                id="scenario-detail-note"
                 style="
                   font-size: 0.68rem;
                   color: var(--text-dim);
@@ -549,8 +580,10 @@
             </div>
           </div>
 
+          </div>
+
           <!-- Physics Explained -->
-          <div class="panel">
+          <div class="panel physics-panel">
             <div class="panel-title">The Physics Explained</div>
             <div class="expl-body">
               <p>
@@ -571,10 +604,13 @@
                 limit. An unstressed rope of natural length D would contract to
                 D/γ after the common acceleration program ends. The anchored
                 ships <em>prevent</em> this contraction, forcing the rope to
-                span the full lab gap D. The displayed break threshold uses the
-                standard γ-based central-anchor proxy after slack is gone. The
-                selected MCIF panel shows why active acceleration has no unique
-                simultaneous rope length.
+                 span the full lab gap D. The displayed break threshold uses the
+                 standard γ-based central-anchor proxy after slack is gone. The
+                 selected MCIF panel shows why active acceleration has no unique
+                 simultaneous rope length. With off-center attachment controls,
+                 the threshold remains an explicitly labelled γ times
+                 lab-coordinate-span convention, not an exact endpoint rest
+                 length.
               </div>
               <div class="callout callout-b">
                 <strong
@@ -587,6 +623,17 @@
                 slice. A change in selected-slice distance is not a single-frame
                 statement that one ship simply moves closer. Bell mode has no
                 shared global rest frame while accelerating.
+              </div>
+              <div class="callout callout-b">
+                <strong>Bell midpoint reference:</strong> The selectable
+                midpoint marker follows a kinematic reference path and remains
+                on the connector between its attachment events. In a selected
+                MCIF slice it need not be the coordinate midpoint, because the
+                two attachment events are selected at different lab times. The
+                 site does not solve relativistic rope elasticity, so this is not
+                 presented as a material-particle clock. Once the proxy says the
+                 rope has snapped, the faded marker is only a reference to the
+                 former connector and no clock value is shown for it.
               </div>
               <div class="callout callout-g">
                 <strong>Strong Tow:</strong> This is a quasi-static loaded

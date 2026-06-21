@@ -54,6 +54,8 @@ const el = {
   valGap: $("val-gap"),
   valBreak: $("val-break"),
   valRopeLength: $("val-rope-length"),
+  ctrlRopeLengthLabel: $("ctrl-rope-length-label"),
+  ctrlRopeLengthTip: $("ctrl-rope-length-tip"),
 
   btnPlay: $("btn-play"),
   btnReset: $("btn-reset"),
@@ -82,9 +84,12 @@ const el = {
   eqLabgapFormula: $("eq-labgap-formula"),
   eqPropgap: $("eq-propgap"),
   eqPropgapLabel: $("eq-propgap-label"),
+  eqPropgapLabelText: $("eq-propgap-label-text"),
   eqPropgapTag: $("eq-propgap-tag"),
   eqPropgapFormula: $("eq-propgap-formula"),
   eqLinit: $("eq-linit"),
+  eqLinitLabel: $("eq-linit-label"),
+  eqLinitTip: $("eq-linit-tip"),
   eqLinitFormula: $("eq-linit-formula"),
   eqRlab: $("eq-rlab"),
   eqRlabLabel: $("eq-rlab-label"),
@@ -92,6 +97,7 @@ const el = {
   eqRprop: $("eq-rprop"),
   eqRpropFormula: $("eq-rprop-formula"),
   eqRpropLabel: $("eq-rprop-label"),
+  eqRpropLabelText: $("eq-rprop-label-text"),
   eqStretchLabelText: $("eq-stretch-label-text"),
   eqStretch: $("eq-stretch"),
   eqStretchFormula: $("eq-stretch-formula"),
@@ -100,6 +106,7 @@ const el = {
   eqStrain: $("eq-strain"),
   eqMechDivider: $("eq-mech-divider"),
   eqMechLabel: $("eq-mech-label"),
+  eqMechLabelText: $("eq-mech-label-text"),
   eqMech: $("eq-mech"),
 
   insightTitle: $("insight-title"),
@@ -118,14 +125,17 @@ const el = {
   towExtra: $("tow-extra"),
   svMechLoad: $("sv-mech-load"),
   svTowGap: $("sv-tow-gap"),
+  scenarioDetailNote: $("scenario-detail-note"),
 
   ropeLengthRow: $("rope-length-row"),
   breakControlRow: $("break-control-row"),
   monitorTitle: $("monitor-title"),
-  ctrlBreakName: $("ctrl-break-name"),
+  ctrlBreakLabel: $("ctrl-break-label"),
   ctrlBreakTip: $("ctrl-break-tip"),
-  attachLabelA: $("attach-label-a"),
-  attachLabelB: $("attach-label-b"),
+  attachLabelTextA: $("attach-label-text-a"),
+  attachLabelTextB: $("attach-label-text-b"),
+  attachTipA: $("attach-tip-a"),
+  attachTipB: $("attach-tip-b"),
 };
 
 // Canvas dimensions
@@ -148,7 +158,9 @@ function selectedObserverName(phys = null) {
   if (selected === "A") return "Ship A";
   if (selected === "rope") {
     if (phys?.scenario === "born") return "Reference midpoint";
-    return phys?.scenario === "tow" ? "Cable midpoint" : "Rope midpoint";
+    return phys?.scenario === "tow"
+      ? "Cable midpoint"
+      : "Rope midpoint reference";
   }
   return "Ship B";
 }
@@ -183,9 +195,10 @@ function formatFixed(value, digits = 4, suffix = "") {
   return `${value.toFixed(digits)}${suffix}`;
 }
 
-function connectorClockLabel(scenario) {
+function connectorClockLabel(scenario, isBroken = false) {
   if (scenario === "born") return "REF τ";
-  return scenario === "tow" ? "CABLE τ" : "ROPE τ";
+  if (scenario === "tow") return "CABLE τ";
+  return isBroken ? "FORMER REF." : "MIDPOINT REF. τ";
 }
 
 function frameClockTau(phys, key) {
@@ -202,6 +215,11 @@ function displayedProperGap(phys) {
   return phys?.prop_gap ?? 0;
 }
 
+function connectorClockTau(phys) {
+  if (phys.scenario === "bell" && phys.isBroken) return null;
+  return frameClockTau(phys, "cable");
+}
+
 function displayedCableSpan(phys) {
   if (state.view === "proper" && Number.isFinite(phys?.slice_cable_span)) {
     return phys.slice_cable_span;
@@ -210,7 +228,7 @@ function displayedCableSpan(phys) {
 }
 
 function setLeadingText(element, value) {
-  if (element?.childNodes[0]) element.childNodes[0].textContent = value;
+  if (element) element.textContent = value;
 }
 
 function plumeAlphaForDisplay(phys, alpha) {
@@ -308,6 +326,49 @@ function uiStrainColor(ratio) {
     b = Math.round(80 + (104 - 80) * s);
   }
   return [r, g, b];
+}
+
+// The canvas does not claim to render a spectrum. It only keeps the direction
+// of the longitudinal Doppler shift correct while retaining faint context for
+// remote, non-selected craft. Positive radial velocity means recession.
+function visualDopplerTint(relativeX, relativeVelocity) {
+  const direction = Math.sign(relativeX) || 1;
+  const recession = Math.max(
+    -0.94,
+    Math.min(0.94, direction * (relativeVelocity || 0)),
+  );
+  const dopplerFactor = Physics.longitudinalDopplerFactor(recession);
+  const strength = Math.min(0.32, 0.045 + 0.26 * Math.abs(recession));
+  return {
+    recession,
+    dopplerFactor,
+    strength,
+    color: recession >= 0 ? [255, 116, 102] : [86, 190, 255],
+  };
+}
+
+function drawDopplerContext(ctx, sx, sy, sw, sh, tint, dScale) {
+  if (!tint || tint.strength <= 0.045) return;
+  const [r, g, b] = tint.color;
+  const edgeAlpha = tint.strength;
+  const grad = ctx.createLinearGradient(
+    tint.recession >= 0 ? sx : sx + sw,
+    sy,
+    tint.recession >= 0 ? sx + sw : sx,
+    sy,
+  );
+  grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${edgeAlpha * 0.22})`);
+  grad.addColorStop(0.52, `rgba(${r}, ${g}, ${b}, ${edgeAlpha})`);
+  grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, ${edgeAlpha * 0.28})`);
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = 0.88;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(sx, sy, sw, sh, 5 * dScale);
+  else ctx.rect(sx, sy, sw, sh);
+  ctx.fill();
+  ctx.restore();
 }
 
 // ═══════════════════════════════════════════════
@@ -528,6 +589,7 @@ function drawClock(
   color,
   dScale,
   nullLabel = "N/A",
+  labelBelow = false,
 ) {
   const boxTop = py - 12 * dScale;
   const boxBottom = py + 12 * dScale;
@@ -572,7 +634,9 @@ function drawClock(
 
   ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
   ctx.font = `${Math.max(7, Math.round(8 * dScale))}px 'JetBrains Mono', 'Space Mono', monospace`;
-  ctx.fillText(label, px, py - 16 * dScale);
+  if (label) {
+    ctx.fillText(label, px, py + (labelBelow ? 20 : -16) * dScale);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -673,6 +737,7 @@ function renderLab(phys) {
     label,
     hasEngine,
     thrustAlpha = state.a,
+    tint = null,
   ) {
     const sx = toSX(Math.min(ePosPhys, fPosPhys));
     const sw = Math.max(5 * dScale, Math.abs(toSX(fPosPhys) - toSX(ePosPhys)));
@@ -741,6 +806,8 @@ function renderLab(phys) {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
+    drawDopplerContext(ctx, sx, sy, sw, sh, tint, dScale);
+
     const noseX = toSX(Math.max(ePosPhys, fPosPhys));
     ctx.fillStyle = color;
     ctx.globalAlpha = 0.55;
@@ -783,6 +850,8 @@ function renderLab(phys) {
   const engineAlphaB = phys.engineAlphaB ?? rocketAlphaB;
   const hasEngineA = engineAlphaA > 0;
   const hasEngineB = engineAlphaB > 0;
+  const tintA = visualDopplerTint(C_A, phys.vA ?? v);
+  const tintB = visualDopplerTint(C_B, phys.vB ?? v);
   const sh_half = sh / 2;
 
   // Draw clocks FIRST (behind ship labels).
@@ -850,6 +919,7 @@ function renderLab(phys) {
     "A",
     hasEngineA,
     engineAlphaA,
+    tintA,
   );
   drawShip(
     C_B,
@@ -860,6 +930,7 @@ function renderLab(phys) {
     "B",
     hasEngineB,
     engineAlphaB,
+    tintB,
   );
 
   // Ship Labels
@@ -920,7 +991,7 @@ function renderLab(phys) {
       midX,
       ry_rope,
       phys.clock_tau_cable,
-      connectorClockLabel(scenario),
+      connectorClockLabel(scenario, isBroken),
       clockColor,
       dScale,
     );
@@ -1037,11 +1108,18 @@ function renderProper(phys) {
   const A_attach = frameX(phys.frame_A_attach, A_cx + state.aA * S0);
   const B_attach = frameX(phys.frame_B_attach, B_cx + state.aB * S0);
   const cableCenter = frameX(phys.frame_cable, (A_attach + B_attach) / 2);
+  const observerX = frameX(phys.frame_observer, (A_cx + B_cx) / 2);
   const BASE_PROPER = 8.0;
-  const neededProper = properGap + A_span + B_span + S0 * 1.2;
+  const sceneLeft = Math.min(A_left, B_left, A_attach, B_attach);
+  const sceneRight = Math.max(A_right, B_right, A_attach, B_attach);
+  const sceneCenter = (sceneLeft + sceneRight) / 2;
+  const neededProper = sceneRight - sceneLeft + 1.4 * S0;
   const totalW = Math.max(BASE_PROPER, neededProper);
   const scaleP = CW / totalW; // camera scale (zooms out with gap)
-  const camX_p = (A_cx + B_cx) / 2;
+  // The canvas camera centers the displayed system, not the selected observer.
+  // A selected marker therefore remains at its actual position on the chosen
+  // MCIF slice instead of being visually recast as the spatial origin.
+  const camX_p = sceneCenter;
   const toSX = (x) => (x - camX_p) * scaleP + CW / 2;
   const cy = Math.round(CH * 0.42);
   const sh = 38 * dScale;
@@ -1063,8 +1141,9 @@ function renderProper(phys) {
   const halfNat = (L_init * scaleP) / 2;
   const midPx = (psx_A + psx_B) / 2;
 
-  // L0 natural length indicator, hidden when "ROPE SNAPPED" text is drawn.
-  if (!isBroken) {
+  // L0 applies only to Bell's fragile-rope model. Strong Tow and Born-rigid
+  // Reference do not have a Bell natural length to draw.
+  if (scenario === "bell" && !isBroken) {
     ctx.strokeStyle = "rgba(160,176,192,0.22)";
     ctx.lineWidth = 1.8 * dScale;
     ctx.setLineDash([5 * dScale, 6 * dScale]);
@@ -1103,13 +1182,15 @@ function renderProper(phys) {
     label,
     hasEngine,
     thrustAlpha = state.a,
+    tint = null,
+    showContextEngine = false,
   ) {
     const sxL = toSX(left);
     const sw = Math.max(5 * dScale, toSX(right) - toSX(left));
     const sy = cy - sh / 2;
     const esx = sxL;
 
-    if (hasEngine) {
+    if (hasEngine || showContextEngine) {
       const displayAlpha = plumeAlphaForDisplay(phys, thrustAlpha);
       const alphaNorm = Math.max(0, Math.min(1, displayAlpha / 1.5));
       const flicker =
@@ -1118,9 +1199,17 @@ function renderProper(phys) {
           : Math.sin(now * 0.055 + (label === "A" ? 0 : 1.8)) * 2.5;
       const flameLen = Math.max(3, 7 + 26 * alphaNorm + flicker) * dScale;
 
+      const contextAlpha = showContextEngine ? 0.26 : 1;
+      const [tr, tg, tb] = tint?.color ?? [70, 210, 255];
       const fg = ctx.createLinearGradient(esx, cy, esx - flameLen, cy);
-      fg.addColorStop(0, `rgba(70,210,255,${0.55 + 0.37 * alphaNorm})`);
-      fg.addColorStop(0.45, `rgba(70,210,255,${0.14 + 0.22 * alphaNorm})`);
+      fg.addColorStop(
+        0,
+        `rgba(${tr},${tg},${tb},${contextAlpha * (0.55 + 0.37 * alphaNorm)})`,
+      );
+      fg.addColorStop(
+        0.45,
+        `rgba(${tr},${tg},${tb},${contextAlpha * (0.14 + 0.22 * alphaNorm)})`,
+      );
       fg.addColorStop(1, "rgba(70,210,255,0)");
       ctx.fillStyle = fg;
       ctx.beginPath();
@@ -1131,7 +1220,10 @@ function renderProper(phys) {
       ctx.fill();
 
       const ig = ctx.createRadialGradient(esx, cy, 0, esx, cy, 11 * dScale);
-      ig.addColorStop(0, `rgba(110,230,255,${0.35 + 0.4 * alphaNorm})`);
+      ig.addColorStop(
+        0,
+        `rgba(${tr},${tg},${tb},${contextAlpha * (0.35 + 0.4 * alphaNorm)})`,
+      );
       ig.addColorStop(1, "rgba(110,230,255,0)");
       ctx.fillStyle = ig;
       ctx.beginPath();
@@ -1165,6 +1257,8 @@ function renderProper(phys) {
     ctx.shadowBlur = 6 * dScale;
     ctx.stroke();
     ctx.shadowBlur = 0;
+
+    drawDopplerContext(ctx, sxL, sy, sw, sh, tint, dScale);
 
     ctx.strokeStyle = color;
     ctx.globalAlpha = 0.18;
@@ -1303,6 +1397,14 @@ function renderProper(phys) {
     engineAlphaA > 0 && phys.frame_A_center?.missionActive !== false;
   const engineActiveB =
     engineAlphaB > 0 && phys.frame_B_center?.missionActive !== false;
+  const tintA = visualDopplerTint(
+    A_cx - observerX,
+    phys.frame_A_center?.v ?? 0,
+  );
+  const tintB = visualDopplerTint(
+    B_cx - observerX,
+    phys.frame_B_center?.v ?? 0,
+  );
   drawProperShip(
     A_cx,
     A_left,
@@ -1311,6 +1413,8 @@ function renderProper(phys) {
     "A",
     engineActiveA,
     engineAlphaA,
+    tintA,
+    engineAlphaA > 0 && !engineActiveA,
   );
   drawProperShip(
     B_cx,
@@ -1320,6 +1424,8 @@ function renderProper(phys) {
     "B",
     engineActiveB,
     engineAlphaB,
+    tintB,
+    engineAlphaB > 0 && !engineActiveB,
   );
   drawProperPylon(psx_A);
   drawProperPylon(psx_B);
@@ -1454,14 +1560,16 @@ function renderProper(phys) {
     drawClock(
       ctx,
       toSX(cableCenter),
-      ry - (compactCanvas ? 76 : 44) * dScale,
+      // Keep the reference-clock label below the top-right telemetry badge.
+      ry - (compactCanvas ? 76 : 32) * dScale,
       toSX(cableCenter),
       ry,
-      frameClockTau(phys, "cable"),
-      connectorClockLabel(scenario),
+      connectorClockTau(phys),
+      connectorClockLabel(scenario, isBroken),
       ropeClock_color,
       dScale,
-      "PRE-START",
+      isBroken ? "NO CLOCK" : "PRE-START",
+      !isBroken,
     );
     ctx.globalAlpha = 1.0;
   }
@@ -1573,13 +1681,13 @@ function updateBadge(phys) {
     displayTau = phys.clock_tau_B_center != null ? phys.clock_tau_B_center : null;
     obsLabel = " [B]";
   } else if (selected === "rope") {
-    displayTau = phys.clock_tau_cable != null ? phys.clock_tau_cable : null;
-    obsLabel =
-      phys.scenario === "bell"
-        ? " [rope]"
-        : phys.scenario === "tow"
-          ? " [cable]"
-          : " [ref]";
+    if (phys.scenario === "bell") {
+      displayTau = phys.isBroken ? null : phys.clock_tau_cable;
+      obsLabel = phys.isBroken ? " [former ref.]" : " [midpoint ref.]";
+    } else {
+      displayTau = phys.clock_tau_cable != null ? phys.clock_tau_cable : null;
+      obsLabel = phys.scenario === "tow" ? " [cable]" : " [ref]";
+    }
   }
   el.badgeTau.textContent =
     (displayTau != null ? displayTau.toFixed(3) : "n/a") + obsLabel;
@@ -1606,45 +1714,60 @@ function updateScenarioUI({ scenario }) {
     setBreakControlEnabled(true);
     updateBreakControlValue(scenario);
     setRopeLengthControlEnabled(true);
+    el.ctrlRopeLengthLabel.textContent = "Rope Natural Length (L₀)";
+    el.ctrlRopeLengthTip.textContent =
+      "Natural rest length as a multiple of the initial attachment-point span D + ΔAttach·S₀. It applies to Bell's fragile rope.";
     el.monitorTitle.textContent = "Rope Proxy Monitor";
-    el.ctrlBreakName.childNodes[0].textContent = "Rope Break Strain ";
+    el.ctrlBreakLabel.textContent = "Rope Break Strain";
     if (el.ctrlBreakTip)
       el.ctrlBreakTip.textContent =
         "Maximum fractional elongation used by Bell's kinematic break proxy. A truly inextensible idealization has near 0%. This control is not a full material-stress model.";
-    if (el.attachLabelA)
-      el.attachLabelA.childNodes[0].textContent = "Rope Attachment Point";
-    if (el.attachLabelB)
-      el.attachLabelB.childNodes[0].textContent = "Rope Attachment Point";
+    el.attachLabelTextA.textContent = "Rope Attachment Point";
+    el.attachLabelTextB.textContent = "Rope Attachment Point";
+    el.attachTipA.textContent =
+      "Where the rope connects to Ship A. Moves the attachment point relative to the ship's center, changing the rope's natural length L₀.";
+    el.attachTipB.textContent =
+      "Changing the attachment point changes the initial attachment span D+(ΔAttach)·S₀. A longer natural length reduces proxy strain after slack is gone, but it does not remove Bell's increasing central-anchor proxy.";
   } else if (scenario === "tow") {
     el.scenarioBadge.className = "scenario-badge sb-tow";
     el.scenarioBadge.textContent = "Strong Tow";
     setBreakControlEnabled(true);
     updateBreakControlValue(scenario);
     setRopeLengthControlEnabled(false, "fixed span");
+    el.ctrlRopeLengthLabel.textContent = "Cable Baseline Span";
+    el.ctrlRopeLengthTip.textContent =
+      "Disabled in Strong Tow. The loaded-cable baseline comes from D + ΔAttach·S₀; this scenario does not use Bell's fragile-rope natural-length slider.";
     el.monitorTitle.textContent = "Tow Load Monitor";
-    el.ctrlBreakName.childNodes[0].textContent = "Tow Load Reference ";
+    el.ctrlBreakLabel.textContent = "Tow Load Reference";
     if (el.ctrlBreakTip)
       el.ctrlBreakTip.textContent =
         "Normalized load reference used to scale the tow load index. The loaded steel cable remains intact, contracts in the lab frame, and develops only a small elastic strain in this approximation.";
-    if (el.attachLabelA)
-      el.attachLabelA.childNodes[0].textContent = "Cable Attachment Point";
-    if (el.attachLabelB)
-      el.attachLabelB.childNodes[0].textContent = "Cable Attachment Point";
+    el.attachLabelTextA.textContent = "Cable Attachment Point";
+    el.attachLabelTextB.textContent = "Cable Attachment Point";
+    el.attachTipA.textContent =
+      "Where the illustrative loaded cable connects to Ship A. The choice changes the baseline attachment span, not a Bell rope natural length.";
+    el.attachTipB.textContent =
+      "Where the illustrative loaded cable connects to Ship B. The choice changes the baseline attachment span, not a Bell rope natural length.";
   } else {
     el.scenarioBadge.className = "scenario-badge sb-born";
     el.scenarioBadge.textContent = "Born-Rigid Reference";
     setBreakControlEnabled(false);
     updateBreakControlValue(scenario);
     setRopeLengthControlEnabled(false, "reference");
+    el.ctrlRopeLengthLabel.textContent = "Reference Span";
+    el.ctrlRopeLengthTip.textContent =
+      "Disabled in Born-rigid Reference. The exact Rindler attachment span is determined by D and the selected attachment positions, not by a material rope length.";
     el.monitorTitle.textContent = "Reference Monitor";
-    el.ctrlBreakName.childNodes[0].textContent = "Reference Status ";
+    el.ctrlBreakLabel.textContent = "Reference Status";
     if (el.ctrlBreakTip)
       el.ctrlBreakTip.textContent =
         "The Born-rigid reference is an exact kinematic benchmark, not a material rope model. This inactive control has no tolerance setting because it has no Bell-type threshold.";
-    if (el.attachLabelA)
-      el.attachLabelA.childNodes[0].textContent = "Reference Attachment Point";
-    if (el.attachLabelB)
-      el.attachLabelB.childNodes[0].textContent = "Reference Attachment Point";
+    el.attachLabelTextA.textContent = "Reference Attachment Point";
+    el.attachLabelTextB.textContent = "Reference Attachment Point";
+    el.attachTipA.textContent =
+      "Reference position on Ship A used to calculate the exact Rindler attachment span. It does not specify a material rope connection.";
+    el.attachTipB.textContent =
+      "Reference position on Ship B used to calculate the exact Rindler attachment span. It does not specify a material rope connection.";
   }
 }
 
@@ -1716,11 +1839,11 @@ function updateEquations(phys) {
   const isProper = state.view === "proper";
 
   setLeadingText(
-    el.eqPropgapLabel,
+    el.eqPropgapLabelText,
     isProper ? "Selected MCIF Gap " : "Reference Gap ",
   );
   setLeadingText(
-    el.eqRpropLabel,
+    el.eqRpropLabelText,
     isProper ? "Selected Slice Span " : "Required Span ",
   );
 
@@ -1768,16 +1891,19 @@ function updateEquations(phys) {
     el.eqRlabFormula.textContent = "x(ξB)-x(ξA), exact";
     el.eqRpropFormula.textContent = isProper
       ? "exact selected MCIF cable slice"
-      : "Born: natural span";
+      : "Born: reference span";
     el.eqStretchLabelText.textContent = "Reference Stretch";
     el.eqStretchFormula.textContent = "0, Born rigid";
+    el.eqLinitLabel.textContent = "Reference Span";
+    el.eqLinitTip.textContent =
+      "Exact proper distance between the selected attachment markers in the Born-rigid Rindler reference. It is not a material rope natural length.";
     el.eqLinitFormula.textContent = "D+(ΔAttach)·S₀";
     el.eqStrainLabelText.textContent = "Reference Strain";
     el.eqStrainFormula.textContent = "exact Born-rigid reference";
 
     el.eqMechDivider.style.display = "";
     el.eqMechLabel.style.display = "";
-    el.eqMechLabel.childNodes[0].textContent = "Proper Accel. Split ";
+    el.eqMechLabelText.textContent = "Proper Accel. Split";
     el.eqMech.style.display = "";
     el.eqMech.textContent = `αA = ${phys.properAlphaA.toFixed(4)}, αB = ${phys.properAlphaB.toFixed(4)} c/yr`;
   } else if (scenario === "tow") {
@@ -1806,14 +1932,17 @@ function updateEquations(phys) {
       ? "exact selected MCIF cable slice"
       : "loaded material span";
     el.eqStretchLabelText.textContent = "Elastic Stretch";
-    el.eqStretchFormula.textContent = "steel strain × L₀";
+    el.eqStretchFormula.textContent = "steel strain × baseline span";
+    el.eqLinitLabel.textContent = "Cable Baseline Span";
+    el.eqLinitTip.textContent =
+      "Initial attachment-point span used as the Strong Tow cable baseline. The displayed elastic strain is illustrative and this is not Bell's fragile-rope natural length.";
     el.eqLinitFormula.textContent = "D+(ΔAttach)·S₀";
     el.eqStrainLabelText.textContent = "Steel Strain";
     el.eqStrainFormula.textContent = "min(0.2%, 0.15% × load)";
 
     el.eqMechDivider.style.display = "";
     el.eqMechLabel.style.display = "";
-    el.eqMechLabel.childNodes[0].textContent = "Tow Accel. Split ";
+    el.eqMechLabelText.textContent = "Tow Accel. Split";
     el.eqMech.style.display = "";
     el.eqMech.textContent = `αA = ${phys.properAlphaA.toFixed(4)}, αB = ${phys.properAlphaB.toFixed(4)} c/yr`;
   } else {
@@ -1841,9 +1970,16 @@ function updateEquations(phys) {
     el.eqRlabFormula.textContent = "exact attachment-point lab slice";
     el.eqRpropFormula.textContent = isProper
       ? "exact selected attachment span"
-      : "Bell: Coord. Span × γ proxy";
+      : phys.attachmentStressApproximate
+        ? "Bell: γ × lab coord. proxy (offsets)"
+        : "Bell: γ × D center-line proxy";
     el.eqStretchLabelText.textContent = "Kinematic Stretch Proxy";
-    el.eqStretchFormula.textContent = "max(0, proxy − L₀)";
+    el.eqStretchFormula.textContent = phys.attachmentStressApproximate
+      ? "max(0, offset proxy − L₀)"
+      : "max(0, proxy − L₀)";
+    el.eqLinitLabel.textContent = "Natural Length L₀";
+    el.eqLinitTip.textContent =
+      "The unstressed rest length of the rope at t=0. Depends on initial gap, rope length factor, and attachment offsets.";
     el.eqLinitFormula.textContent = `${state.ropeLength.toFixed(1)}×(D+(ΔAttach)·S₀)`;
     el.eqStrainLabelText.textContent = "Proxy Strain";
     el.eqStrainFormula.textContent = "Stretch / L₀";
@@ -1894,8 +2030,9 @@ function updateEquations(phys) {
   } else {
     el.insightTitle.textContent = "Key Insight: Bell's Paradox";
     el.insightEq.textContent = `Proxy stretch = max(0, required − L₀) = ${stretch.toFixed(4)} L`;
-    el.insightSub.innerHTML =
-      "Bell mode holds the lab-frame coordinate gap fixed while an unstressed comoving rope would occupy a shorter lab span. The break display uses the familiar central-anchor Lorentz proxy after slack is used. During active acceleration there is no shared ship rest frame, so the Proper Frame exposes the exact selected MCIF slice separately.";
+    el.insightSub.textContent = phys.attachmentStressApproximate
+      ? "Bell mode holds the lab-frame center gap fixed. With off-center attachments, the break display applies a declared γ times lab-coordinate-span convention, not an exact endpoint rest length. During active acceleration there is no shared ship rest frame, so the Proper Frame exposes the exact selected MCIF attachment span separately."
+      : "Bell mode holds the lab-frame coordinate gap fixed while an unstressed comoving rope would occupy a shorter lab span. The break display uses the familiar central-anchor Lorentz proxy after slack is used. During active acceleration there is no shared ship rest frame, so the Proper Frame exposes the exact selected MCIF slice separately.";
   }
 }
 
@@ -1932,6 +2069,8 @@ function updateStrainBar(phys) {
     el.towExtra.style.display = "";
     el.svMechLoad.textContent = `αA ${phys.properAlphaA.toFixed(4)}, αB ${leadAlpha.toFixed(4)} c/yr`;
     el.svTowGap.textContent = state.L_gap.toFixed(1);
+    el.scenarioDetailNote.textContent =
+      "Born-rigid Reference is an exact Rindler kinematic benchmark with no material cable, no elastic strain, and no failure state.";
     return;
   }
 
@@ -1974,6 +2113,8 @@ function updateStrainBar(phys) {
       ? `αA ${phys.properAlphaA.toFixed(4)}, αB ${phys.properAlphaB.toFixed(4)} c/yr`
       : `illustrative ramp ${(phys.loadProgress * 100).toFixed(0)}% of ${loadRampDuration.toFixed(3)} yr`;
     el.svTowGap.textContent = phys.cable_lab.toFixed(3);
+    el.scenarioDetailNote.textContent =
+      "Strong Tow uses a loaded steel-cable approximation with small elastic strain and no failure state. It is not a full continuum-elasticity solver.";
     return;
   }
 
