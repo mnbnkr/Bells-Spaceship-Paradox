@@ -3,6 +3,9 @@
 // ═══════════════════════════════════════════════
 const Physics = window.RelativityPhysics;
 const { S0 } = Physics;
+// A fixed eight-world-coordinate span fills the canvas width in either frame.
+// The camera can pan with the system, but never zooms to hide changing geometry.
+const VIEWPORT_SPAN = 8.0;
 
 const state = {
   t: 0.0,
@@ -685,10 +688,9 @@ function renderLab(phys) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, CW, CH);
 
-  const minScene = 8.0;
-  const neededScene = state.L_gap * 1.1 + S0 * 2.8;
-  const sceneUnits = Math.max(minScene, neededScene);
-  const scale = CW / sceneUnits;
+  // Preserve a fixed world-to-screen scale while the lab camera follows the
+  // moving pair. Long ropes or large separations can therefore leave view.
+  const scale = CW / VIEWPORT_SPAN;
 
   const camX = (C_A + C_B) / 2;
   const toSX = (x) => (x - camX) * scale + CW / 2;
@@ -710,8 +712,8 @@ function renderLab(phys) {
   ctx.strokeStyle = "rgba(255,255,255,0.02)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  const g0 = Math.floor(camX - sceneUnits / 2 - 1);
-  const g1 = Math.ceil(camX + sceneUnits / 2 + 1);
+  const g0 = Math.floor(camX - VIEWPORT_SPAN / 2 - 1);
+  const g1 = Math.ceil(camX + VIEWPORT_SPAN / 2 + 1);
   for (let i = g0; i <= g1; i += 0.5) {
     const sx = toSX(i);
     ctx.moveTo(sx, 0);
@@ -740,7 +742,7 @@ function renderLab(phys) {
     tint = null,
   ) {
     const sx = toSX(Math.min(ePosPhys, fPosPhys));
-    const sw = Math.max(5 * dScale, Math.abs(toSX(fPosPhys) - toSX(ePosPhys)));
+    const sw = Math.abs(toSX(fPosPhys) - toSX(ePosPhys));
     const sy = cy - sh / 2;
     const esx = toSX(ePosPhys);
     const psx = toSX(pPosPhys);
@@ -1109,13 +1111,13 @@ function renderProper(phys) {
   const B_attach = frameX(phys.frame_B_attach, B_cx + state.aB * S0);
   const cableCenter = frameX(phys.frame_cable, (A_attach + B_attach) / 2);
   const observerX = frameX(phys.frame_observer, (A_cx + B_cx) / 2);
-  const BASE_PROPER = 8.0;
   const sceneLeft = Math.min(A_left, B_left, A_attach, B_attach);
   const sceneRight = Math.max(A_right, B_right, A_attach, B_attach);
   const sceneCenter = (sceneLeft + sceneRight) / 2;
-  const neededProper = sceneRight - sceneLeft + 1.4 * S0;
-  const totalW = Math.max(BASE_PROPER, neededProper);
-  const scaleP = CW / totalW; // camera scale (zooms out with gap)
+  // Preserve the selected MCIF's spatial geometry. The camera follows the
+  // scene centre but does not zoom out as the selected-slice span increases.
+  // Distant ships can leave the viewport instead of being visually compressed.
+  const scaleP = CW / VIEWPORT_SPAN;
   // The canvas camera centers the displayed system, not the selected observer.
   // A selected marker therefore remains at its actual position on the chosen
   // MCIF slice instead of being visually recast as the spatial origin.
@@ -1186,7 +1188,7 @@ function renderProper(phys) {
     showContextEngine = false,
   ) {
     const sxL = toSX(left);
-    const sw = Math.max(5 * dScale, toSX(right) - toSX(left));
+    const sw = toSX(right) - toSX(left);
     const sy = cy - sh / 2;
     const esx = sxL;
 

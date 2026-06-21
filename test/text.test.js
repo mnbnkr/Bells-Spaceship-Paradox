@@ -214,6 +214,27 @@ test("Proper Frame camera centers the displayed scene, not the selected observer
   assert.match(script, /isBroken \? "NO CLOCK" : "PRE-START"/);
 });
 
+test("canvas mapping keeps a fixed spatial scale instead of fitting changing geometry", () => {
+  const html = read("index.html");
+  const script = read("script.js");
+  const labRenderer = script.slice(
+    script.indexOf("function renderLab"),
+    script.indexOf("function renderProper"),
+  );
+  const properRenderer = script.slice(script.indexOf("function renderProper"));
+
+  assert.match(script, /const VIEWPORT_SPAN = 8\.0/);
+  assert.match(labRenderer, /const scale = CW \/ VIEWPORT_SPAN/);
+  assert.match(properRenderer, /const scaleP = CW \/ VIEWPORT_SPAN/);
+  assert.doesNotMatch(labRenderer, /neededScene|sceneUnits/);
+  assert.doesNotMatch(properRenderer, /neededProper|totalW|zooms out with gap/);
+  assert.doesNotMatch(script, /Math\.max\(5 \* dScale/);
+  assert.match(
+    html,
+    /fixed spatial scale in each\s+frame:[\s\S]*never shrinks objects to fit[\s\S]*Distant objects can leave the viewport/,
+  );
+});
+
 test("context tints remain explicitly illustrative and use a sign-correct Doppler helper", () => {
   const html = read("index.html");
   const readme = read("README.md");

@@ -662,6 +662,29 @@ test("every proper-frame slice is simultaneous in its selected MCIF", () => {
   }
 });
 
+test("each selected ship keeps its own proper length on its MCIF slice", () => {
+  for (const scenario of ["bell", "tow", "born"]) {
+    for (const selectedObserver of ["A", "B"]) {
+      for (const t of [0, 0.5, 2, 6]) {
+        const p = physics.compute({
+          scenario,
+          selectedObserver,
+          t,
+          a: 0.8,
+          L_gap: 3,
+          aA: -0.5,
+          aB: 0.5,
+        });
+        const ownLength =
+          selectedObserver === "A"
+            ? p.frame_A_front.x - p.frame_A_back.x
+            : p.frame_B_front.x - p.frame_B_back.x;
+        approx(ownLength, physics.S0, 1e-8);
+      }
+    }
+  }
+});
+
 test("every selected observer remains at its physical marker and connector geometry stays ordered", () => {
   for (const scenario of ["bell", "tow", "born"]) {
     for (const selectedObserver of ["A", "B", "rope"]) {
